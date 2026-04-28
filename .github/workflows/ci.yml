@@ -38,6 +38,43 @@ jobs:
       - name: Analyzer dogfood (kppCheck must pass with 0 violations)
         run: gradle :libs:kpp-analyzer:kppCheck --console=plain
 
+      - name: Coverage report
+        run: gradle koverXmlReport koverHtmlReport --console=plain
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          set -euo pipefail
+          XML="build/reports/kover/report.xml"
+          if [ ! -f "$XML" ]; then
+            echo "no report"
+            exit 0
+          fi
+          # Extract <counter type="LINE" missed="X" covered="Y"/> at the report root
+          MISSED=$(grep -oE '<counter type="LINE" missed="[0-9]+" covered="[0-9]+"/>' "$XML" | tail -n1 | grep -oE 'missed="[0-9]+"' | grep -oE '[0-9]+')
+          COVERED=$(grep -oE '<counter type="LINE" missed="[0-9]+" covered="[0-9]+"/>' "$XML" | tail -n1 | grep -oE 'covered="[0-9]+"' | grep -oE '[0-9]+')
+          if [ -z "$MISSED" ] || [ -z "$COVERED" ]; then
+            echo "no LINE counter in report"
+            exit 0
+          fi
+          TOTAL=$((MISSED + COVERED))
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "no executable lines"
+            exit 0
+          fi
+          PCT=$(awk -v c=$COVERED -v t=$TOTAL 'BEGIN { printf "%.1f", (c/t)*100 }')
+          echo "## Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "Line coverage: **${PCT}%** (${COVERED} / ${TOTAL})" >> "$GITHUB_STEP_SUMMARY"
+          echo "Line coverage: ${PCT}% (${COVERED} / ${TOTAL})"
+
+      - name: Upload coverage HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: build/reports/kover/html/
+          if-no-files-found: warn
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4

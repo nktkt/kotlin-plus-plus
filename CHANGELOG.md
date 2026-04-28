@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+(no changes since 0.2.0)
+
+## [0.2.0] - 2026-04-28
+
+Minor release. Two new analyzer rules (KPP008, KPP017) and aggregate
+code-coverage tooling (Kover). New rules can surface violations on
+existing consumer code, hence the minor bump.
+
 ### Added
 - KPP008 (ignored `@Io`/`@Db` return) — regex rule, severity warning.
   Mirrors KPP001 but keys on the side-effect annotations instead of
@@ -15,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   severity warning. Skips `/src/test/` and `/src/testFixtures/`. Use
   `@file:Suppress("KPP017")` when reflection is intentional.
 - 12 new analyzer tests (6 per rule plus a registry-size assertion).
+- `org.jetbrains.kotlinx.kover 0.9.1` plugin applied at the root with
+  aggregate `koverHtmlReport` / `koverXmlReport` tasks.
+- CI emits a line-coverage summary in the GitHub Actions job summary.
+  Coverage HTML report is uploaded as a workflow artifact.
+- README badges: coverage (links to CI summary).
 
 ### Changed
 - Shipped analyzer rules: 7 → 9 (KPP001, KPP002, KPP004, KPP005, KPP008,
@@ -24,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `@file:Suppress("KPP017")` directives with a justifying comment —
   these uses of reflection are intentional and the future FIR plugin
   will obviate them.
-- Total tests: 156 → 168.
+- Total tests: 156 → 168 (line coverage at v0.2.0: 82.2%, 1081 / 1315).
 
 ## [0.1.1] - 2026-04-28
 
@@ -95,6 +108,7 @@ strict analyzer, and a Gradle plugin packaging the analyzer.
 - `CONTRIBUTING.md`.
 - Manifesto, syntax mapping, roadmap, rules reference under `docs/`.
 
-[Unreleased]: https://github.com/nktkt/kotlin-plus-plus/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/nktkt/kotlin-plus-plus/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.2.0
 [0.1.1]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.1.1
 [0.1.0]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.1.0

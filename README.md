@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/nktkt/kotlin-plus-plus/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nktkt/kotlin-plus-plus/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/nktkt/kotlin-plus-plus?display_name=tag&sort=semver)](https://github.com/nktkt/kotlin-plus-plus/releases)
+[![Coverage](https://img.shields.io/badge/coverage-see%20CI%20summary-blue)](https://github.com/nktkt/kotlin-plus-plus/actions/workflows/ci.yml)
 [![Kotlin](https://img.shields.io/badge/kotlin-2.2-blueviolet.svg?logo=kotlin)](https://kotlinlang.org/)
 [![JDK](https://img.shields.io/badge/JDK-21-orange.svg)](https://adoptium.net/)
 
@@ -100,6 +101,7 @@ gradle test
 gradle :samples:payment:run
 gradle :samples:http-server:run
 gradle :libs:kpp-analyzer:kppCheck
+gradle koverHtmlReport       # aggregated coverage at build/reports/kover/html/
 ```
 
 168 tests, 0 failures. The analyzer's dogfood pass over the entire
