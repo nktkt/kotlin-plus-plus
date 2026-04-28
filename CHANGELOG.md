@@ -7,7 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-(no changes since 0.3.0)
+### Added
+- 101 new tests boosting line coverage from **83.1% → 90.66%**
+  (1174 / 1413 → 1281 / 1413). Test-only changes; no production code
+  touched.
+
+  Per-class lifts:
+  - `kpp-derive/Json`: 80.3% → 97.6%; full coverage of `JsonLexer`,
+    `JsonParser`, and `Internal.kt` escape branches
+  - `kpp-immutable/ArrayImmutableList`/`ImmutableListIterator`/
+    `LinkedImmutableMap`/`LinkedImmutableSet`: 65–70% → ~100%
+  - `kpp-test/ResultAssertionsKt`: 72.7% → ~100%;
+    `RecordingCapabilitiesKt`: 73.7% → ~100%
+  - `kpp-analyzer/KppScanner`: 93.2% → 97.4%
+  - `kpp-capability/builtins/ConsoleLogger`: 25% → 100%
+  - `samples/http/HandlerKt`: 87.8% → 100% (Upstream / Timeout
+    error-response branches)
+  - 8 new edge-case test classes covering JSON escape paths, parser
+    error paths, immutable collection equality and iteration,
+    capability proxy `equals`/`hashCode`/`toString`, scanner masking
+    and dedup edge cases.
+
+  Untouched: top-level sample `main` runners (need process-level
+  harness), the `kpp-gradle-plugin`'s plugin classes (need extra
+  TestKit fixture beyond what we have), `ConsoleReporter` /
+  `KppCheckKt` CLI entry points (need process-I/O fixturing), and a
+  few defensive/unreachable scanner branches.
 
 ## [0.3.0] - 2026-04-28
 
