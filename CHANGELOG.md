@@ -7,17 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
-- KPP013 (`public var` property) — regex-based, severity warning. Brings
-  shipped rule count to 7 (KPP001/002/004/005/011/013/018).
-
-### Changed
-- `docs/RULES.md` realigned with shipped reality: KPP002 now documents
-  "Raw `Throwable` in catch" (matching the implementation) and KPP005
-  documents "Mutable field on @Immutable" (matching the implementation).
-  KPP008 reassigned to "Ignored side-effecting return", KPP007 keeps
-  "Unbounded mutability inside `data class`" (the planned superset of
-  KPP005).
+(no changes since 0.1.0)
 
 ## [0.1.0] - 2026-04-28
 
@@ -39,7 +29,7 @@ strict analyzer, and a Gradle plugin packaging the analyzer.
   (`SystemClock`, `FixedClock`).
 - `libs/kpp-analyzer` — annotations (`@MustHandle`, `@Pure`, `@Io`, `@Db`,
   `@Blocking`, `@PublicApi`) + regex scanner with rules KPP001, KPP002,
-  KPP004, KPP005, KPP011, KPP018 + suppressions
+  KPP004, KPP005, KPP011, KPP013, KPP018 + suppressions
   (`// noinspection KPPxxx`, `@file:Suppress("KPPxxx", ...)`) +
   string-literal aware masking (no fixture false positives).
 - `libs/kpp-immutable` — `@Immutable`, `@Borrow`, `@Move` annotations;
