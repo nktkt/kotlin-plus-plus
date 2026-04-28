@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+(no changes since 0.3.1)
+
+## [0.3.1] - 2026-04-28
+
+Patch release. No public library API changes — coverage tests, sample
+demonstration, and CI infrastructure modernization.
+
 ### Changed
 - **`samples:http-server`** now exercises `Secret<String>` end-to-end:
   `CreateUserRequest` carries `apiKey: Secret<String>`; clients send
@@ -50,6 +57,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   TestKit fixture beyond what we have), `ConsoleReporter` /
   `KppCheckKt` CLI entry points (need process-I/O fixturing), and a
   few defensive/unreachable scanner branches.
+
+  Coverage at the v0.3.1 tag, including the new sample code, sits at
+  **89.56%** (1296 / 1447). The coverage-boost work landed before the
+  sample refactor; the small dip below 90% reflects the fresh
+  AuditEntry / manual-decode paths in `samples/http-server`, which
+  are exercised by the runtime sample but not yet by additional unit
+  tests.
 
 ## [0.3.0] - 2026-04-28
 
@@ -181,7 +195,8 @@ strict analyzer, and a Gradle plugin packaging the analyzer.
 - `CONTRIBUTING.md`.
 - Manifesto, syntax mapping, roadmap, rules reference under `docs/`.
 
-[Unreleased]: https://github.com/nktkt/kotlin-plus-plus/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/nktkt/kotlin-plus-plus/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.3.1
 [0.3.0]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.3.0
 [0.2.0]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.2.0
 [0.1.1]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.1.1
