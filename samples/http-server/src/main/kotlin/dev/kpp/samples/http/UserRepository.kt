@@ -23,15 +23,8 @@ class InMemoryUserRepository : UserRepository {
     }
 
     override suspend fun create(req: CreateUserRequest): Result<User, ApiError> {
-        if (!req.email.contains('@')) {
-            return err(ApiError.Validation("email", "must contain '@'"))
-        }
-        if (req.displayName.isBlank()) {
-            return err(ApiError.Validation("displayName", "must not be blank"))
-        }
-        if (req.apiKey.expose().isBlank()) {
-            return err(ApiError.Validation("api_key", "missing or blank"))
-        }
+        // Validation is enforced at the wire boundary by validateCreateUserRequest
+        // (kpp-validation pipeline), so the repo focuses purely on persistence.
         val user = User(
             id = UUID.randomUUID().toString(),
             email = req.email,

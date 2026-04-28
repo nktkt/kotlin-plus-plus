@@ -61,7 +61,7 @@ fun main() = runBlocking {
                     method = "POST",
                     path = "/users",
                     query = emptyMap(),
-                    body = """{"email":"$it@example.com","display_name":"User $it","api_key":"$it-key"}""",
+                    body = """{"email":"$it@example.com","display_name":"User $it","api_key":"$it-key-001"}""",
                 ),
             )
             Json.decode<User>(resp.body).id

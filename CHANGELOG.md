@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+(no changes since 0.4.0)
+
+## [0.4.0] - 2026-04-28
+
+Minor release. New `kpp-validation` library plus a flagship-sample
+integration showing typed accumulating validation in production-shaped
+code.
+
 ### Added
 - **`libs/kpp-validation`** — new module shipping a typed accumulating
   validation toolkit:
@@ -30,10 +38,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   - 41 tests across `NonEmptyListTest`, `ValidatorTest`,
     `CombinatorsTest`, `ValidatorsTest`, `BuilderTest`.
 
+- **`samples:http-server` validation refactor** — POST /users now uses
+  a new `validateCreateUserRequest` validator that composes
+  `nonEmptyString`, `lengthBetween(...)`, `nonBlankString`, and
+  `email` over the three request fields and **accumulates every
+  failing field's error**. The handler maps the resulting
+  `NonEmptyList<FieldError>` into `ApiError.Validation`, surfacing
+  the first field as the headline and packing the full detail list
+  into the JSON response. Inline imperative validation in
+  `InMemoryUserRepository.create` was removed (now redundant).
+  Sample output for an invalid POST now reads e.g.
+  `"reason":"email: not-email, display_name: blank, display_name: length:expected[1..64],got=0, api_key: length:expected[8..128],got=1"`.
+  4 new validator unit tests + 1 new handler test
+  (`validation_accumulates_errors_across_fields`).
+
 ### Changed
 - Module count: 9 → 10 libs (added `kpp-validation`).
-- Test total: 299 → 340. Coverage will be re-measured at the next
-  release tag.
+- Test total: 299 → 345 (+41 from kpp-validation, +5 from the sample
+  integration). Line coverage at 0.4.0: **90.21%** (1382 / 1532).
 
 ## [0.3.1] - 2026-04-28
 
@@ -221,7 +243,8 @@ strict analyzer, and a Gradle plugin packaging the analyzer.
 - `CONTRIBUTING.md`.
 - Manifesto, syntax mapping, roadmap, rules reference under `docs/`.
 
-[Unreleased]: https://github.com/nktkt/kotlin-plus-plus/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/nktkt/kotlin-plus-plus/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.4.0
 [0.3.1]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.3.1
 [0.3.0]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.3.0
 [0.2.0]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.2.0

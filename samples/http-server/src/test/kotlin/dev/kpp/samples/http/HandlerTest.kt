@@ -93,6 +93,29 @@ class HandlerTest {
     }
 
     @Test
+    fun validation_accumulates_errors_across_fields() = runTest {
+        withCapabilities(InMemoryUserRepository()) {
+            val resp = handle(
+                Request(
+                    method = "POST",
+                    path = "/users",
+                    query = emptyMap(),
+                    body = """{"email":"","display_name":"","api_key":"x"}""",
+                ),
+            )
+            assertEquals(400, resp.status)
+            val payload = Json.decode<Map<String, Any?>>(resp.body)
+            assertEquals("Validation", payload["error"])
+            @Suppress("UNCHECKED_CAST")
+            val details = payload["details"] as Map<String, Any?>
+            val reason = details["reason"] as String
+            assertTrue(reason.contains("email"), "reason should mention email: $reason")
+            assertTrue(reason.contains("display_name"), "reason should mention display_name: $reason")
+            assertTrue(reason.contains("api_key"), "reason should mention api_key: $reason")
+        }
+    }
+
+    @Test
     fun unknown_route_returns_404() = runTest {
         withCapabilities(InMemoryUserRepository()) {
             val resp = handle(Request("GET", "/things/1", emptyMap(), null))

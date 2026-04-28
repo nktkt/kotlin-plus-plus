@@ -3,12 +3,10 @@ package dev.kpp.samples.http
 import dev.kpp.capability.Capabilities
 import dev.kpp.core.Result
 import dev.kpp.core.err
-import dev.kpp.core.ok
 import dev.kpp.derive.Json
 import dev.kpp.samples.http.handlers.createUser
 import dev.kpp.samples.http.handlers.getUser
 import dev.kpp.samples.http.handlers.getUsersBatch
-import dev.kpp.secret.toSecret
 
 data class Request(
     val method: String,
@@ -68,17 +66,23 @@ private fun parseCreateUserRequest(body: String?): Result<CreateUserRequest, Api
     // Json.decode<CreateUserRequest>(body) cannot be used: the kpp-derive
     // decoder rejects Secret<*> parameter types by design (an attacker-shaped
     // payload should not be able to mint a Secret directly via reflection).
-    // We parse to a generic map and lift the api_key string into Secret<String>
-    // ourselves at the boundary, which is the documented manual path.
+    // We parse to a generic map and hand it to the kpp-validation pipeline,
+    // which lifts api_key into Secret<String> after every field validator
+    // has run — so the caller sees ALL field errors, not just the first.
     val raw: Map<String, Any?> = runCatching { Json.decode<Map<String, Any?>>(body) }
         .fold({ it }, { return err(ApiError.BadJson(it.message ?: "parse failed")) })
-    val email = raw["email"] as? String
-        ?: return err(ApiError.Validation("email", "missing or not a string"))
-    val displayName = raw["display_name"] as? String
-        ?: return err(ApiError.Validation("display_name", "missing or not a string"))
-    val apiKey = raw["api_key"] as? String
-    if (apiKey.isNullOrBlank()) return err(ApiError.Validation("api_key", "missing or blank"))
-    return ok(CreateUserRequest(email = email, displayName = displayName, apiKey = apiKey.toSecret()))
+    return when (val v = validateCreateUserRequest(raw)) {
+        is Result.Ok -> v
+        is Result.Err -> {
+            // The handler API surface is one ApiError per response, but the
+            // validator returns a NonEmptyList of every offence. We surface
+            // the first field as the headline and pack the full list into the
+            // reason so the JSON details body lists every failed field.
+            val first = v.error.head
+            val combined = v.error.joinToString(", ") { "${it.field}: ${it.code}" }
+            err(ApiError.Validation(first.field, combined))
+        }
+    }
 }
 
 private fun errorResponse(error: ApiError): Response {
