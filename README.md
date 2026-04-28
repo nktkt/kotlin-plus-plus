@@ -57,17 +57,39 @@ Analyzer dogfood against the repo: **0 violations**.
 
 ## Quick start
 
-Add the libraries to a Gradle module:
+### Step 1 — install the libraries to your Maven Local cache
+
+From the repo root:
+
+```sh
+gradle publishToMavenLocal
+```
+
+This installs `dev.kotlinplusplus:kpp-core:0.4.0` and the other 8
+libraries (excluding `kpp-gradle-plugin`, which publishes via
+`java-gradle-plugin`'s own convention) to `~/.m2/repository/`.
+
+### Step 2 — depend on them from any other Gradle project
 
 ```kotlin
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
 dependencies {
-    implementation(project(":libs:kpp-core"))
-    implementation(project(":libs:kpp-capability"))
-    implementation(project(":libs:kpp-analyzer")) // for annotations
+    implementation("dev.kotlinplusplus:kpp-core:0.4.0")
+    implementation("dev.kotlinplusplus:kpp-capability:0.4.0")
+    implementation("dev.kotlinplusplus:kpp-immutable:0.4.0")
+    implementation("dev.kotlinplusplus:kpp-concurrent:0.4.0")
+    implementation("dev.kotlinplusplus:kpp-derive:0.4.0")
+    implementation("dev.kotlinplusplus:kpp-secret:0.4.0")
+    implementation("dev.kotlinplusplus:kpp-validation:0.4.0")
+    testImplementation("dev.kotlinplusplus:kpp-test:0.4.0")
 }
 ```
 
-Write a function whose error channel is part of the type:
+### Then write a function whose error channel is part of the type:
 
 ```kotlin
 sealed interface PaymentError : KppError {
@@ -103,6 +125,7 @@ gradle :samples:payment:run
 gradle :samples:http-server:run
 gradle :libs:kpp-analyzer:kppCheck
 gradle koverHtmlReport       # aggregated coverage at build/reports/kover/html/
+gradle publishToMavenLocal
 ```
 
 345 tests, 0 failures, 90.21% line coverage. The analyzer's dogfood

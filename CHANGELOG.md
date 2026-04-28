@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-(no changes since 0.4.0)
+### Added
+- All nine library modules now publish to Maven Local. Run
+  `gradle publishToMavenLocal` to install
+  `dev.kotlinplusplus:{kpp-core,kpp-capability,kpp-analyzer,
+  kpp-immutable,kpp-concurrent,kpp-derive,kpp-test,kpp-secret,
+  kpp-validation}:0.4.0` to `~/.m2/repository/`. The `kpp-gradle-plugin`
+  module continues to publish via `java-gradle-plugin`'s own
+  convention. Project version bumped from `0.1.0-SNAPSHOT` to `0.4.0`
+  in the root build script. POM metadata includes name, description,
+  url, SCM, and developer; no `<licenses>` block yet — that needs to
+  be added before any of these are pushed to Maven Central.
 
 ## [0.4.0] - 2026-04-28
 
