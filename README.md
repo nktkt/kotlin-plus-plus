@@ -28,7 +28,7 @@ first-class — without forking the compiler.
 ```
 .
 ├── build.gradle.kts          # root, configures Kotlin 2.2 + -Xcontext-parameters
-├── settings.gradle.kts       # 8 libs + 2 samples
+├── settings.gradle.kts       # 9 libs + 2 samples
 ├── gradle.properties
 ├── docs/
 │   ├── MANIFESTO.md          # design principles
@@ -43,15 +43,14 @@ first-class — without forking the compiler.
 │   ├── kpp-concurrent/       # parallelMap, raceFirstSuccess, sequence, withTimeoutOrErr
 │   ├── kpp-derive/           # @DeriveJson runtime stub (Phase-4 KSP placeholder)
 │   ├── kpp-test/             # assertOk/assertErr, recordingCapability, VirtualClock, CaptureLogger
+│   ├── kpp-secret/           # Secret<T> redacting wrapper, timing-safe equals, JSON integration
 │   └── kpp-gradle-plugin/    # `dev.kotlinplusplus.kpp` Gradle plugin: kppCheck task + DSL
 └── samples/
     ├── payment/              # focused demo: typed errors + caps + analyzer
     └── http-server/          # flagship demo: every module composing
 ```
 
-The repo currently has 168 tests, all green: 24 (kpp-core) + 11 (kpp-capability) +
-36 (kpp-analyzer) + 23 (kpp-immutable) + 11 (kpp-concurrent) + 28 (kpp-derive)
-+ 21 (kpp-test) + 3 (kpp-gradle-plugin TestKit) + 3 (samples:payment) + 8 (samples:http-server).
+The repo currently has 195 tests, all green across 10 modules.
 Analyzer dogfood against the repo: **0 violations**.
 
 ## Quick start
@@ -104,7 +103,7 @@ gradle :libs:kpp-analyzer:kppCheck
 gradle koverHtmlReport       # aggregated coverage at build/reports/kover/html/
 ```
 
-168 tests, 0 failures. The analyzer's dogfood pass over the entire
+195 tests, 0 failures. The analyzer's dogfood pass over the entire
 repo currently reports 0 violations.
 
 ## Status
@@ -115,7 +114,8 @@ repo currently reports 0 violations.
 | Error declaration `error Foo { ... }`    | `sealed interface Foo : KppError`            | shipped       |
 | Capability context                       | `Capabilities`, `withCapabilities(...)`      | shipped       |
 | Built-in capabilities                    | `Logger`, `Clock`                            | shipped       |
-| Analyzer rules                           | KPP001, KPP002, KPP004, KPP005, KPP008, KPP011, KPP013, KPP017, KPP018 | shipped |
+| Analyzer rules                           | KPP001, KPP002, KPP004, KPP005, KPP007, KPP008, KPP011, KPP013, KPP017, KPP018 | shipped |
+| Redacted secret type                     | `Secret<T>` + `expose()` + JSON `[REDACTED]`  | shipped       |
 | Analyzer suppressions                    | `// noinspection KPPxxx` and `@file:Suppress`| shipped       |
 | Effect modifiers `pure`/`io`/`db`        | `@Pure`/`@Io`/`@Db`/`@Blocking` annotations  | partial       |
 | Effect inference / propagation           | requires K2 FIR plugin                       | planned       |

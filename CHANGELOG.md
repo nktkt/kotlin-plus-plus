@@ -7,7 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-(no changes since 0.2.0)
+### Added
+- **`libs/kpp-secret`** — new module shipping `Secret<T>`, a wrapper
+  that hides its value in `toString` (`"Secret(***)"`) and in default
+  JSON encoding. `equals` is timing-safe (constant-time per byte) for
+  `String` and `ByteArray`, falls through to plain equality otherwise.
+  Read with `expose()`. Factories: `secretOf(value)`,
+  `String.toSecret()`, `ByteArray.toSecret()`. Typealiases:
+  `RedactedString`, `RedactedBytes`. 16 tests.
+- **`@DeriveJson(allowSecrets = false)`** — new opt-in flag in
+  `kpp-derive`. By default a `Secret<T>` field encodes as the literal
+  string `"[REDACTED]"`; set `allowSecrets = true` to encode the
+  underlying value. Decoder explicitly rejects `Secret<T>` parameter
+  types until the Phase-4 KSP backend lands. 3 integration tests in
+  `kpp-derive` covering both flows.
+- **KPP007** (`data class` with `var` or mutable collection field) —
+  regex rule, severity error. Generalises KPP005: KPP005 stays as
+  the `@Immutable`-annotated subset and wins the dedup when both
+  apply. 8 new analyzer tests.
+
+### Changed
+- Shipped analyzer rules: 9 → 10 (KPP001, KPP002, KPP004, KPP005,
+  KPP007, KPP008, KPP011, KPP013, KPP017, KPP018).
+- Module count: 8 → 9 libs (added `kpp-secret`).
+- Test total: 168 → 195. Coverage will be re-measured at the next
+  release tag.
 
 ## [0.2.0] - 2026-04-28
 

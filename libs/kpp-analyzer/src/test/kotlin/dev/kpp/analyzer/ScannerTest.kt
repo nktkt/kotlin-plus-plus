@@ -626,4 +626,111 @@ class ScannerTest {
         assertEquals(Severity.WARN, k8!!.severity)
         assertEquals(Severity.WARN, k17!!.severity)
     }
+
+    @Test
+    fun kpp007_fires_on_var_in_data_class() = withTempTree { dir ->
+        val f = dir.resolve("Kpp007Var.kt")
+        f.writeText(
+            """
+            package sample
+
+            data class Foo(var name: String)
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP007" }
+        assertEquals(1, violations.size, "expected 1 KPP007, got=$violations")
+    }
+
+    @Test
+    fun kpp007_fires_on_mutable_list_in_data_class() = withTempTree { dir ->
+        val f = dir.resolve("Kpp007MutableList.kt")
+        f.writeText(
+            """
+            package sample
+
+            data class Foo(val items: MutableList<String>)
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP007" }
+        assertEquals(1, violations.size, "expected 1 KPP007, got=$violations")
+    }
+
+    @Test
+    fun kpp007_fires_on_mutable_map_in_data_class() = withTempTree { dir ->
+        val f = dir.resolve("Kpp007MutableMap.kt")
+        f.writeText(
+            """
+            package sample
+
+            data class Foo(val data: MutableMap<String, Int>)
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP007" }
+        assertEquals(1, violations.size, "expected 1 KPP007, got=$violations")
+    }
+
+    @Test
+    fun kpp007_fires_on_arraylist_in_data_class() = withTempTree { dir ->
+        val f = dir.resolve("Kpp007ArrayList.kt")
+        f.writeText(
+            """
+            package sample
+
+            data class Foo(val items: ArrayList<String>)
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP007" }
+        assertEquals(1, violations.size, "expected 1 KPP007, got=$violations")
+    }
+
+    @Test
+    fun kpp007_does_not_fire_on_clean_data_class() = withTempTree { dir ->
+        val f = dir.resolve("Kpp007Clean.kt")
+        f.writeText(
+            """
+            package sample
+
+            data class Foo(val name: String, val items: List<String>)
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP007" }
+        assertTrue(violations.isEmpty(), "expected no KPP007, got=$violations")
+    }
+
+    @Test
+    fun kpp007_does_not_fire_on_non_data_class_with_var() = withTempTree { dir ->
+        val f = dir.resolve("Kpp007NonData.kt")
+        f.writeText(
+            """
+            package sample
+
+            class Foo(var name: String)
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP007" }
+        assertTrue(violations.isEmpty(), "expected no KPP007, got=$violations")
+    }
+
+    @Test
+    fun kpp007_does_not_fire_when_immutable_annotated() = withTempTree { dir ->
+        val f = dir.resolve("Kpp007Immutable.kt")
+        f.writeText(
+            """
+            package sample
+
+            @Immutable
+            data class Foo(var name: String)
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan()
+        assertTrue(violations.any { it.ruleId == "KPP005" }, "expected KPP005, got=$violations")
+        assertFalse(violations.any { it.ruleId == "KPP007" }, "did not expect KPP007, got=$violations")
+    }
+
+    @Test
+    fun kpp007_severity_is_error() {
+        val rule = KPP_RULES.firstOrNull { it.id == "KPP007" }
+        assertTrue(rule != null, "KPP007 not registered")
+        assertEquals(Severity.ERROR, rule!!.severity)
+    }
 }

@@ -28,6 +28,7 @@ runtime effect:
 | KPP002 | error    | "Raw exception catch"     | `catch (_: Throwable \| Exception \| RuntimeException)` clauses; advises a specific exception type or `Result<T, E>`. |
 | KPP004 | error    | "Mutable public APIs"     | `public fun` returning `MutableList`/`MutableMap`/`MutableSet`. |
 | KPP005 | error    | "Mutable field on @Immutable" | `@Immutable` data class whose primary constructor uses `var`, or whose properties are typed `MutableList`/`MutableMap`/`MutableSet`/`ArrayList`/`HashMap`/`HashSet`. |
+| KPP007 | error    | "Mutable field on data class" | Any `data class` whose primary constructor uses `var`, or whose properties are typed `MutableList`/`MutableMap`/`MutableSet`/`ArrayList`/`HashMap`/`HashSet`. Superset of KPP005; KPP005 (the `@Immutable`-annotated subset) takes precedence and KPP007 is suppressed on those classes. |
 | KPP008 | warning  | "Ignored side-effecting return" | Calls to `@Io`/`@Db` functions whose return value is discarded as a statement. Disjoint from KPP001: a call site annotated both `@MustHandle` and `@Io`/`@Db` fires KPP001 only. |
 | KPP011 | error    | "Blocking calls inside suspend" | Calls to `Thread.sleep`, `runBlocking`, `URL(...).readText`, `File.readText` inside a `suspend fun` body. |
 | KPP013 | warning  | "public var property"      | Top-level or class-body `var` without an explicit `private`/`internal`/`protected` modifier. Local `var`s inside `fun` bodies and constructor `var` parameters are excluded (the latter are caught by KPP005/KPP007). Promoted to error in Phase 3. |

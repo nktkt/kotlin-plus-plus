@@ -216,6 +216,12 @@ class KppScanner(val roots: List<File>) {
         // slice logic isolated from the line-by-line loop below.
         scanImmutableClasses(file, lines, out, kpp005Anchors)
 
+        // KPP007: superset of KPP005 — fire on ANY data class with a mutable
+        // primary-constructor field, except those already covered by KPP005
+        // (which is the @Immutable-annotated subset). Done in its own pass for
+        // the same multi-line bookkeeping reason as KPP005.
+        scanDataClasses(file, lines, out)
+
         // KPP013 prep: precompute, for each line, whether it sits inside any
         // function body. We walk the masked file once with proper brace + paren
         // tracking so multi-line `fun` signatures (where `(` and `{` are on
@@ -523,6 +529,102 @@ class KppScanner(val roots: List<File>) {
             }
 
             // Advance past this class to avoid re-matching the same @Immutable.
+            i = k + 1
+        }
+    }
+
+    // KPP007. Same heuristic as KPP005 (walk the primary-constructor parameter
+    // slice and flag `var` or mutable-collection-typed fields), but the class
+    // precondition is "any data class" rather than "@Immutable-annotated".
+    //
+    // Dedup with KPP005: we look back from the `data class` header over blank
+    // lines, line comments, and other annotation lines; if we encounter an
+    // `@Immutable` annotation in that look-back, we skip the class entirely so
+    // the more-specific KPP005 is the only rule that fires.
+    private fun scanDataClasses(
+        file: File,
+        lines: List<String>,
+        out: MutableList<Violation>,
+    ) {
+        val dataClassHeader = Regex("""^\s*(?:[A-Za-z]+\s+)*data\s+class\s+([A-Za-z_][A-Za-z0-9_]*)""")
+        val mutableCollectionParam = Regex(
+            """(?:^|[(,\s])(?:val|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(MutableList|MutableMap|MutableSet|ArrayList|HashMap|HashSet)\b""",
+        )
+        val varParam = Regex(
+            """(?:^|[(,\s])var\s+([A-Za-z_][A-Za-z0-9_]*)\s*:""",
+        )
+
+        var i = 0
+        while (i < lines.size) {
+            val line = lines[i]
+            if (!dataClassHeader.containsMatchIn(line)) { i++; continue }
+
+            // Look back over blank lines, line comments, and annotation lines
+            // to determine whether this data class is @Immutable-marked. If it
+            // is, KPP005 covers it and we skip to avoid double-firing.
+            var hasImmutable = false
+            var b = i - 1
+            while (b >= 0) {
+                val tb = lines[b].trim()
+                if (tb.isEmpty() || tb.startsWith("//")) { b--; continue }
+                if (tb.startsWith("@")) {
+                    if (tb.contains("@Immutable")) { hasImmutable = true; break }
+                    b--; continue
+                }
+                break
+            }
+            if (hasImmutable) { i++; continue }
+
+            // Collect the primary-constructor slice — same shape as KPP005.
+            val sliceLines = mutableListOf<Pair<Int, String>>()
+            var paren = 0
+            var seenOpen = false
+            var k = i
+            while (k < lines.size) {
+                val sanitized = stripStringsAndComments(lines[k])
+                sliceLines += (k + 1) to sanitized
+                for (ch in sanitized) {
+                    if (ch == '(') { paren++; seenOpen = true }
+                    else if (ch == ')') { paren-- }
+                }
+                if (seenOpen && paren <= 0) break
+                k++
+            }
+            if (!seenOpen) { i++; continue }
+
+            val anchorLineNo = i + 1
+            val flagged = mutableSetOf<String>()
+            for ((lineNo, text) in sliceLines) {
+                val effective = if (lineNo == anchorLineNo) {
+                    val open = text.indexOf('(')
+                    if (open >= 0) text.substring(open) else continue
+                } else text
+
+                for (m in mutableCollectionParam.findAll(effective)) {
+                    val fieldName = m.groupValues[1]
+                    val typeName = m.groupValues[2]
+                    if (!flagged.add(fieldName)) continue
+                    out += Violation(
+                        ruleId = "KPP007",
+                        file = file,
+                        line = lineNo,
+                        column = 1,
+                        message = "data class has '$fieldName: $typeName' which is mutable; use val + ImmutableList/Map/Set",
+                    )
+                }
+                for (m in varParam.findAll(effective)) {
+                    val fieldName = m.groupValues[1]
+                    if (!flagged.add(fieldName)) continue
+                    out += Violation(
+                        ruleId = "KPP007",
+                        file = file,
+                        line = lineNo,
+                        column = 1,
+                        message = "data class has 'var $fieldName' which is mutable; use val + ImmutableList/Map/Set",
+                    )
+                }
+            }
+
             i = k + 1
         }
     }

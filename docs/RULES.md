@@ -21,7 +21,7 @@ All rule IDs are stable. Severities marked `error` block CI;
 | KPP004 | Mutable type on public API            | error    | shipped       | `public fun` returns `MutableList`/`MutableMap`/`MutableSet`.             |
 | KPP005 | Mutable field on `@Immutable`         | error    | shipped       | `@Immutable` data class has `var` or `MutableList`/`MutableMap`/`MutableSet` field. |
 | KPP006 | Suspend not cancellable               | warning  | planned       | `suspend fun` body does not yield (no `yield()`, no real suspension point) over a long-running loop. |
-| KPP007 | Unbounded mutability inside `data class` | error  | planned       | `data class` field typed as `var` or as a mutable collection. (Superset of KPP005; KPP005 is the `@Immutable`-marked subset that shipped first.) |
+| KPP007 | Unbounded mutability inside `data class` | error  | shipped       | `data class` field typed as `var` or as a mutable collection. Deduplicated against KPP005 — when a class is `@Immutable`, only KPP005 fires. |
 | KPP008 | Ignored side-effecting return         | warning  | shipped       | `@Io`/`@Db` function called as a statement; result not bound or consumed. |
 | KPP009 | Missing capability binding            | error    | planned       | Function uses `get<C>()` for a `C` not declared in `@RequiresCapabilities`. |
 | KPP010 | Capability shadowing                  | warning  | planned       | `withCapabilities` block re-binds a capability already present in the parent bag with a different runtime type. |

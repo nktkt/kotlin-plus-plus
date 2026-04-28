@@ -9,6 +9,7 @@ package dev.kpp.derive
 @Retention(AnnotationRetention.RUNTIME)
 annotation class DeriveJson(
     val snakeCase: Boolean = false,
+    val allowSecrets: Boolean = false,
 )
 
 @Target(AnnotationTarget.PROPERTY)

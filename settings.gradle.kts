@@ -21,6 +21,7 @@ include(
     ":libs:kpp-concurrent",
     ":libs:kpp-derive",
     ":libs:kpp-test",
+    ":libs:kpp-secret",
     ":libs:kpp-gradle-plugin",
     ":samples:payment",
     ":samples:http-server",

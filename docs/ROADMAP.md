@@ -32,6 +32,8 @@ exists.
 - [x] KPP002 — catching raw `Throwable`/`Exception`/`RuntimeException`
 - [x] KPP004 — `MutableList`/`MutableMap`/`MutableSet` on public API
 - [x] KPP005 — `@Immutable` data class with `var`/`MutableList`/etc.
+- [x] KPP007 — `data class` (any) with `var` or mutable collection
+      field; deduped against KPP005 for `@Immutable`-marked classes
 - [x] KPP008 — `@Io`/`@Db` return value discarded as a statement
 - [x] KPP011 — blocking call inside `suspend fun`
 - [x] KPP013 — `public var` property
@@ -39,7 +41,7 @@ exists.
 - [x] KPP018 — exception escapes public API
 - [x] Suppression: `// noinspection KPPxxx` per line + per-file
       `@file:Suppress("KPPxxx", ...)`
-- [ ] KPP003, KPP006, KPP007, KPP009, KPP010, KPP012, KPP014..KPP016
+- [ ] KPP003, KPP006, KPP009, KPP010, KPP012, KPP014..KPP016
       — catalogued in `RULES.md`, not yet implemented
 - [ ] IntelliJ inspections that surface KPP* in the editor
 - [ ] K2 FIR compiler plugin — replaces all regex heuristics with real
@@ -78,9 +80,13 @@ does not require a Rust-grade borrow checker.
 - [x] Library: `libs/kpp-immutable` — `ImmutableList`/`ImmutableMap`/
       `ImmutableSet` sealed wrappers with persistent-style writers
       (returning new instances) and `iterator().remove()` throwing
-- [x] `@Immutable` annotation marker (paired with planned KPP005)
+- [x] `@Immutable` annotation marker (paired with shipped KPP005)
 - [x] `@Borrow` / `@Move` annotation placeholders for the future
       keywords; today purely documentary, no enforcement
+- [x] Compiler-level KPP004 superset reached at the regex tier:
+      KPP007 fires on any `data class` with a `var` or mutable
+      collection field (full data-class coverage; KPP005 stays as
+      the `@Immutable`-marked subset for explicit intent)
 - [ ] `immutable data class` keyword; auto-uses persistent collections
 - [ ] Compiler-level KPP004 (no mutable types reachable from public)
 - [ ] Real `borrow` / `move` parameter modifiers with no implicit copy
@@ -107,11 +113,17 @@ greppable, source-visible derivation system.
 - [ ] Standard derives: `Json`, `Equals`, `Hash`, `Show`, `Diff`,
       `Lens`
 
-## Phase 5 — Value-Oriented Performance + Platform ABI
+## Phase 5 — Value-Oriented Performance + Platform ABI + Security
 
 Goal: deterministic performance characteristics across JVM, Native,
-Wasm.
+Wasm; security primitives that prevent accidental leakage.
 
+- [x] Library: `libs/kpp-secret` — `Secret<T>` wrapper with redacting
+      `toString`, timing-safe `equals` for `String` and `ByteArray`,
+      explicit `expose()` to read, `RedactedString` / `RedactedBytes`
+      typealiases. Integrates with `kpp-derive`: `Secret` fields
+      encode as `"[REDACTED]"` by default, opt-in via
+      `@DeriveJson(allowSecrets = true)`.
 - [ ] Stronger `value class` with stack-allocation guarantees
 - [ ] Specified ABI for JVM, Native, Wasm
 - [ ] Cross-platform value layout

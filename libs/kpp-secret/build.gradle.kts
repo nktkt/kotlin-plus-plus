@@ -3,8 +3,6 @@ plugins {
 }
 
 dependencies {
-    implementation(kotlin("reflect"))
-    implementation(project(":libs:kpp-secret"))
     testImplementation(kotlin("test"))
 }
 

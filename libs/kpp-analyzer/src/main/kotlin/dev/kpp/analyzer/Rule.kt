@@ -45,6 +45,12 @@ val KPP_RULES: List<Rule> = listOf(
         description = "@Immutable data class must use val + immutable collection types",
     ),
     Rule(
+        id = "KPP007",
+        name = "Mutable field on data class",
+        severity = Severity.ERROR,
+        description = "data class field is var or a mutable collection type; use val + ImmutableList/Map/Set",
+    ),
+    Rule(
         id = "KPP008",
         name = "ignored-side-effecting-return",
         severity = Severity.WARN,

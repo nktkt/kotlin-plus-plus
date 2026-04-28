@@ -2,6 +2,7 @@
 
 package dev.kpp.derive
 
+import dev.kpp.secret.Secret
 import kotlin.reflect.KClass
 import kotlin.reflect.KParameter
 import kotlin.reflect.KProperty1
@@ -91,7 +92,19 @@ object Json {
             prop.isAccessible = true
             @Suppress("UNCHECKED_CAST")
             val pv = (prop as KProperty1<Any, *>).get(value)
-            encodeInto(pv, out)
+            // Intercept Secret<*> before normal encoding. The default is to
+            // emit "[REDACTED]" so a secret cannot leak via toString/JSON
+            // by accident; the enclosing class must opt in with
+            // @DeriveJson(allowSecrets = true) to encode the underlying value.
+            if (pv is Secret<*>) {
+                if (derive.allowSecrets) {
+                    encodeInto(pv.expose(), out)
+                } else {
+                    out.append(escapeJsonString("[REDACTED]"))
+                }
+            } else {
+                encodeInto(pv, out)
+            }
         }
         out.append('}')
     }
@@ -163,6 +176,12 @@ object Json {
         if (raw == null) return null
         val klass = type.classifier as? KClass<*>
             ?: throw IllegalArgumentException("cannot resolve type $type")
+        if (klass == Secret::class) {
+            throw IllegalArgumentException(
+                "Json.decode does not support Secret<T> fields yet — " +
+                    "use the KSP-backed @DeriveJson once Phase 4 lands"
+            )
+        }
         return when (klass) {
             List::class, MutableList::class, ArrayList::class -> {
                 val list = raw as? List<*>
