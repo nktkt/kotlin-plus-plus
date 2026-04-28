@@ -124,6 +124,14 @@ Wasm; security primitives that prevent accidental leakage.
       typealiases. Integrates with `kpp-derive`: `Secret` fields
       encode as `"[REDACTED]"` by default, opt-in via
       `@DeriveJson(allowSecrets = true)`.
+- [x] Library: `libs/kpp-validation` — `Validator<I, O, E>` typed
+      validators returning `Result<O, NonEmptyList<E>>`. `and`
+      accumulates errors, `andThen` short-circuits, `optional` /
+      `required` handle nullability, `mapError` rewrites the error
+      type. Built-ins: `nonEmptyString`, `nonBlankString`,
+      `lengthBetween`, `rangeInt`, `matches(Regex)`, `email`,
+      `oneOf(Set)`. `validate { }` DSL accumulates per-field errors
+      across an entire data class.
 - [ ] Stronger `value class` with stack-allocation guarantees
 - [ ] Specified ABI for JVM, Native, Wasm
 - [ ] Cross-platform value layout

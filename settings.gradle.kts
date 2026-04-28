@@ -22,6 +22,7 @@ include(
     ":libs:kpp-derive",
     ":libs:kpp-test",
     ":libs:kpp-secret",
+    ":libs:kpp-validation",
     ":libs:kpp-gradle-plugin",
     ":samples:payment",
     ":samples:http-server",

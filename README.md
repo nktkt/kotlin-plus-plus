@@ -28,7 +28,7 @@ first-class — without forking the compiler.
 ```
 .
 ├── build.gradle.kts          # root, configures Kotlin 2.2 + -Xcontext-parameters
-├── settings.gradle.kts       # 9 libs + 2 samples
+├── settings.gradle.kts       # 10 libs + 2 samples
 ├── gradle.properties
 ├── docs/
 │   ├── MANIFESTO.md          # design principles
@@ -44,14 +44,15 @@ first-class — without forking the compiler.
 │   ├── kpp-derive/           # @DeriveJson runtime stub (Phase-4 KSP placeholder)
 │   ├── kpp-test/             # assertOk/assertErr, recordingCapability, VirtualClock, CaptureLogger
 │   ├── kpp-secret/           # Secret<T> redacting wrapper, timing-safe equals, JSON integration
+│   ├── kpp-validation/       # Validator<I,O,E>, NonEmptyList, accumulating combinators
 │   └── kpp-gradle-plugin/    # `dev.kotlinplusplus.kpp` Gradle plugin: kppCheck task + DSL
 └── samples/
     ├── payment/              # focused demo: typed errors + caps + analyzer
     └── http-server/          # flagship demo: every module composing
 ```
 
-The repo currently has 299 tests, all green across 11 modules.
-Line coverage: **89.56%** (1296 / 1447).
+The repo currently has 340 tests, all green across 12 modules.
+Line coverage: **89.56%** (1296 / 1447) at v0.3.1; will be re-measured at the next release.
 Analyzer dogfood against the repo: **0 violations**.
 
 ## Quick start
@@ -104,8 +105,8 @@ gradle :libs:kpp-analyzer:kppCheck
 gradle koverHtmlReport       # aggregated coverage at build/reports/kover/html/
 ```
 
-299 tests, 0 failures, 89.56% line coverage. The analyzer's dogfood
-pass over the entire repo currently reports 0 violations.
+340 tests, 0 failures. The analyzer's dogfood pass over the entire
+repo currently reports 0 violations.
 
 ## Status
 
@@ -117,6 +118,7 @@ pass over the entire repo currently reports 0 violations.
 | Built-in capabilities                    | `Logger`, `Clock`                            | shipped       |
 | Analyzer rules                           | KPP001, KPP002, KPP004, KPP005, KPP007, KPP008, KPP011, KPP013, KPP017, KPP018 | shipped |
 | Redacted secret type                     | `Secret<T>` + `expose()` + JSON `[REDACTED]`  | shipped       |
+| Typed accumulating validation            | `Validator<I,O,E>` + `NonEmptyList` + `validate { }` builder | shipped |
 | Analyzer suppressions                    | `// noinspection KPPxxx` and `@file:Suppress`| shipped       |
 | Effect modifiers `pure`/`io`/`db`        | `@Pure`/`@Io`/`@Db`/`@Blocking` annotations  | partial       |
 | Effect inference / propagation           | requires K2 FIR plugin                       | planned       |

@@ -7,7 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-(no changes since 0.3.1)
+### Added
+- **`libs/kpp-validation`** — new module shipping a typed accumulating
+  validation toolkit:
+  - `NonEmptyList<T>` (List delegate, `head` / `tail` / `+`, structural
+    equality); factories `nonEmptyListOf`, `List.toNonEmptyListOrNull`.
+  - `Validator<I, O, E>` fun-interface returning
+    `Result<O, NonEmptyList<E>>`; helpers `validId`, `validFail`,
+    `require`.
+  - Combinators: `and` (accumulates errors from both sides),
+    `andThen` (short-circuits on the first failure), `optional`
+    (skips null), `required(missing)` (rejects null), `mapError`
+    (rewrites the error type).
+  - Built-ins keyed on stable `String` codes: `nonEmptyString`,
+    `nonBlankString`, `lengthBetween(min, max)`, `rangeInt(min, max)`,
+    `matches(regex)`, `email`, `oneOf(set)`. The caller maps to its
+    own error type with `.mapError { ... }`.
+  - `validate { }` DSL with per-field collection: failing fields
+    contribute `FieldError(field, code)` entries to a single
+    `NonEmptyList`; the builder body keeps running so all field
+    errors accumulate before the final `Err`.
+  - 41 tests across `NonEmptyListTest`, `ValidatorTest`,
+    `CombinatorsTest`, `ValidatorsTest`, `BuilderTest`.
+
+### Changed
+- Module count: 9 → 10 libs (added `kpp-validation`).
+- Test total: 299 → 340. Coverage will be re-measured at the next
+  release tag.
 
 ## [0.3.1] - 2026-04-28
 
