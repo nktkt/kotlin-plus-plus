@@ -311,4 +311,100 @@ class ScannerTest {
         val violations = KppScanner(listOf(dir.toFile())).scan()
         assertTrue(violations.isEmpty(), "expected no violations, got=$violations")
     }
+
+    @Test
+    fun kpp013_fires_on_top_level_public_var() = withTempTree { dir ->
+        val f = dir.resolve("Q.kt")
+        f.writeText(
+            """
+            package sample
+
+            var counter = 0
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP013" }
+        assertEquals(1, violations.size, "expected 1 KPP013, got=$violations")
+    }
+
+    @Test
+    fun kpp013_fires_on_class_body_public_var() = withTempTree { dir ->
+        val f = dir.resolve("R.kt")
+        f.writeText(
+            """
+            package sample
+
+            class Foo {
+                var name = "x"
+            }
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP013" }
+        assertEquals(1, violations.size, "expected 1 KPP013, got=$violations")
+    }
+
+    @Test
+    fun kpp013_does_not_fire_on_private_var() = withTempTree { dir ->
+        val f = dir.resolve("S.kt")
+        f.writeText(
+            """
+            package sample
+
+            private var x = 0
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP013" }
+        assertTrue(violations.isEmpty(), "expected no KPP013, got=$violations")
+    }
+
+    @Test
+    fun kpp013_does_not_fire_on_internal_var() = withTempTree { dir ->
+        val f = dir.resolve("T.kt")
+        f.writeText(
+            """
+            package sample
+
+            internal var x = 0
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP013" }
+        assertTrue(violations.isEmpty(), "expected no KPP013, got=$violations")
+    }
+
+    @Test
+    fun kpp013_does_not_fire_on_local_var() = withTempTree { dir ->
+        val f = dir.resolve("U.kt")
+        f.writeText(
+            """
+            package sample
+
+            fun work() {
+                var local = 1
+                local += 1
+            }
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP013" }
+        assertTrue(violations.isEmpty(), "expected no KPP013, got=$violations")
+    }
+
+    @Test
+    fun kpp013_does_not_fire_on_constructor_var_param() = withTempTree { dir ->
+        val f = dir.resolve("V.kt")
+        f.writeText(
+            """
+            package sample
+
+            class Foo(var x: Int)
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP013" }
+        assertTrue(violations.isEmpty(), "expected no KPP013, got=$violations")
+    }
+
+    @Test
+    fun kpp013_severity_is_warning() {
+        val rule = KPP_RULES.firstOrNull { it.id == "KPP013" }
+        assertTrue(rule != null, "KPP013 not registered")
+        assertEquals(Severity.WARN, rule!!.severity)
+    }
 }

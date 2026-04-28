@@ -16,18 +16,18 @@ All rule IDs are stable. Severities marked `error` block CI;
 | ID     | Name                                  | Severity | Status        | Rationale                                                                 |
 |--------|---------------------------------------|----------|---------------|---------------------------------------------------------------------------|
 | KPP001 | Ignored `Result` return               | error    | shipped       | Calls to `@MustHandle` functions whose return value is discarded.         |
-| KPP002 | Ignored side-effecting return         | warning  | planned       | `@Io`/`@Db` function called as a statement; result not bound or consumed. |
+| KPP002 | Raw `Throwable` in `catch`            | error    | shipped       | `catch (e: Throwable\|Exception\|RuntimeException)` — too broad; catch a precise type or use `runCatchingTyped`. |
 | KPP003 | Missing `! E` declaration             | error    | compiler-only | Function may fail (calls `bind()` of an `Err` arm) but return type lacks an error channel. |
 | KPP004 | Mutable type on public API            | error    | shipped       | `public fun` returns `MutableList`/`MutableMap`/`MutableSet`.             |
-| KPP005 | Missing transaction context           | error    | planned       | `@Db` write performed without an enclosing `Transaction` capability.     |
+| KPP005 | Mutable field on `@Immutable`         | error    | shipped       | `@Immutable` data class has `var` or `MutableList`/`MutableMap`/`MutableSet` field. |
 | KPP006 | Suspend not cancellable               | warning  | planned       | `suspend fun` body does not yield (no `yield()`, no real suspension point) over a long-running loop. |
-| KPP007 | Unbounded mutability inside `data class` | error  | planned       | `data class` field typed as `var` or as a mutable collection.            |
-| KPP008 | Raw `Throwable` in `catch`            | error    | planned       | `catch (e: Throwable)` — must catch a precise type or use `runCatchingTyped`. |
+| KPP007 | Unbounded mutability inside `data class` | error  | planned       | `data class` field typed as `var` or as a mutable collection. (Superset of KPP005; KPP005 is the `@Immutable`-marked subset that shipped first.) |
+| KPP008 | Ignored side-effecting return         | warning  | planned       | `@Io`/`@Db` function called as a statement; result not bound or consumed. |
 | KPP009 | Missing capability binding            | error    | planned       | Function uses `get<C>()` for a `C` not declared in `@RequiresCapabilities`. |
 | KPP010 | Capability shadowing                  | warning  | planned       | `withCapabilities` block re-binds a capability already present in the parent bag with a different runtime type. |
 | KPP011 | Blocking call inside suspend          | error    | shipped       | `Thread.sleep`, `runBlocking`, `URL(...).readText`, `File.readText` inside a `suspend fun`. |
 | KPP012 | Effect downgrade                      | error    | compiler-only | A `pure` function calls an `io` / `db` / `blocking` function.             |
-| KPP013 | `var` on public API                   | warning  | planned       | `public var` property — promoted to error in Phase 3.                    |
+| KPP013 | `var` on public API                   | warning  | shipped       | `public var` property — promoted to error in Phase 3.                    |
 | KPP014 | Non-exhaustive `when` over `error`    | error    | compiler-only | `when` over a sealed `KppError` lacks an `else` arm and misses a case.   |
 | KPP015 | `null` on `! E` channel               | error    | planned       | A function returning `T ! E` returns `null` instead of an `Err`.         |
 | KPP016 | Operator overload abuse               | warning  | planned       | Operator function with non-algebraic semantics (e.g. `plus` performs IO). |

@@ -51,6 +51,12 @@ val KPP_RULES: List<Rule> = listOf(
         description = "Blocking calls (Thread.sleep, runBlocking, blocking IO) must not appear inside a suspend function.",
     ),
     Rule(
+        id = "KPP013",
+        name = "public var",
+        severity = Severity.WARN,
+        description = "public var defeats Kotlin's preference for read-only properties; use val + private var if mutation is needed",
+    ),
+    Rule(
         id = "KPP018",
         name = "exception-escapes-public-api",
         severity = Severity.ERROR,

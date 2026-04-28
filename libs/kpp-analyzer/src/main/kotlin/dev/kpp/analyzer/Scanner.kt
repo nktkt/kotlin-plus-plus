@@ -121,6 +121,11 @@ class KppScanner(val roots: List<File>) {
             """^\s*(public\s+)?fun\s+[^(]*\([^)]*\)\s*:\s*Mutable(List|Map|Set)\s*<""",
         )
         val publicFunDecl = Regex("""^\s*(public\s+)?fun\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(""")
+        // KPP013: a leading `var` declaration not preceded by an access modifier.
+        // Matches at line start (after indent) so constructor params (which sit
+        // inside `(...)` and never start a line with `var`) are excluded.
+        val publicVarDecl = Regex("""^[\t ]*var\s+([A-Za-z_][A-Za-z0-9_]*)""")
+        val varAccessModifier = Regex("""^[\t ]*(private|internal|protected)\b""")
         val standaloneCall = Regex("""^([A-Za-z_][A-Za-z0-9_]*)\s*\(""")
         val suspendFunDecl = Regex("""\bsuspend\s+fun\b""")
         // KPP002: catch-clause parameter type. Allow optional package qualifier
@@ -145,6 +150,12 @@ class KppScanner(val roots: List<File>) {
         // Doing this in a dedicated forward pass keeps the multi-line constructor
         // slice logic isolated from the line-by-line loop below.
         scanImmutableClasses(file, lines, out, kpp005Anchors)
+
+        // KPP013 prep: precompute, for each line, whether it sits inside any
+        // function body. We walk the masked file once with proper brace + paren
+        // tracking so multi-line `fun` signatures (where `(` and `{` are on
+        // different lines) and nested fun definitions are handled correctly.
+        val insideFunBody = computeInsideFunBody(lines)
 
         for ((idx, raw) in lines.withIndex()) {
             val line = raw
@@ -266,6 +277,24 @@ class KppScanner(val roots: List<File>) {
                         line = lineNo,
                         column = (line.indexOf(name) + 1).coerceAtLeast(1),
                         message = "return value of @MustHandle function '$name' is discarded",
+                    )
+                }
+            }
+
+            // KPP013: leading `var` declaration. We only fire when the line is NOT
+            // inside any function body (precomputed in `insideFunBody`) so locals
+            // are excluded. The leading-`var` regex naturally excludes constructor
+            // parameters since those sit inside a `(...)` list and never start a
+            // line with `var` — they're a different rule's responsibility.
+            if (!insideFunBody[idx]) {
+                val pv = publicVarDecl.find(sanitized)
+                if (pv != null && !varAccessModifier.containsMatchIn(sanitized)) {
+                    out += Violation(
+                        ruleId = "KPP013",
+                        file = file,
+                        line = lineNo,
+                        column = sanitized.indexOf("var") + 1,
+                        message = "public var '${pv.groupValues[1]}' — prefer val (with private var backing) for mutability",
                     )
                 }
             }
@@ -393,6 +422,115 @@ class KppScanner(val roots: List<File>) {
             // Advance past this class to avoid re-matching the same @Immutable.
             i = k + 1
         }
+    }
+
+    // Compute, for each masked line, whether it sits inside the body of any
+    // function (`fun ... (...) { ... }`). Used by KPP013 to suppress firings
+    // on local `var` declarations.
+    //
+    // Strategy: walk each masked line character by character, maintaining
+    // (a) a global brace depth and (b) a stack of "fun-body frames" recording
+    // the brace depth at which each currently-open function body was entered.
+    // We separately track whether we're inside a `fun` signature (between
+    // `fun` keyword and the `{` that opens its body) so multi-line signatures
+    // are handled. A line is "inside fun body" if at any point during its
+    // scan the fun-body frame stack was non-empty BEFORE the position the
+    // `var` keyword would appear; for simplicity we mark the entire line as
+    // inside if the stack is non-empty at the START of the line, OR if a
+    // body opens earlier on the same line. The KPP013 regex anchors at the
+    // start of the line, so this approximation is safe for our heuristic.
+    private fun computeInsideFunBody(lines: List<String>): BooleanArray {
+        val res = BooleanArray(lines.size)
+        var depth = 0
+        // Stack of brace depths at which a fun body was entered.
+        val frames = ArrayDeque<Int>()
+        // States for a pending `fun` signature: SAW_FUN -> waiting for `(`,
+        // IN_PARAMS -> consuming `(...)`, AWAIT_BRACE -> waiting for `{`.
+        var sawFun = false
+        var paren = 0
+        var awaitBrace = false
+
+        val funKw = Regex("""\bfun\b""")
+
+        // Tokens that, when starting a new line, signal we've left the previous
+        // function declaration without ever opening a body — so a stale
+        // `awaitBrace` from an abstract / single-expression / interface method
+        // declaration must be cleared so the NEXT `{` (e.g. a class body) is
+        // not misinterpreted as the function body.
+        val declStartRegex = Regex("""^\s*(class\b|interface\b|object\b|enum\b|companion\b|abstract\b|open\b|sealed\b|final\b|override\b|private\b|internal\b|public\b|protected\b|val\b|var\b|fun\b|@|}|init\b|constructor\b)""")
+
+        for ((idx, raw) in lines.withIndex()) {
+            // If a previous fun signature is still awaiting a `{` but this line
+            // starts a new declaration, the previous fun has no body (abstract
+            // or single-expression). Clear the pending state.
+            if (awaitBrace && declStartRegex.containsMatchIn(raw)) {
+                awaitBrace = false
+            }
+
+            // Mark the line based on fun-stack state at line start.
+            res[idx] = frames.isNotEmpty()
+
+            // Find any `fun` keyword occurrences on this line; they arm the
+            // signature scan. We use a regex match list to avoid false positives
+            // on identifiers like `funky` (the \b boundaries handle this).
+            val funStarts = funKw.findAll(raw).map { it.range.first }.toList().toMutableList()
+            var nextFunIdx = 0
+
+            var i = 0
+            while (i < raw.length) {
+                // Activate sawFun when we cross a `fun` keyword position on this line.
+                while (nextFunIdx < funStarts.size && i >= funStarts[nextFunIdx]) {
+                    sawFun = true
+                    paren = 0
+                    awaitBrace = false
+                    nextFunIdx++
+                }
+                val c = raw[i]
+                when (c) {
+                    '(' -> {
+                        if (sawFun) paren++
+                    }
+                    ')' -> {
+                        if (sawFun && paren > 0) {
+                            paren--
+                            if (paren == 0) {
+                                awaitBrace = true
+                                sawFun = false
+                            }
+                        }
+                    }
+                    '=' -> {
+                        // Single-expression function body (`fun foo() = expr`):
+                        // there is no `{`, so cancel the pending body wait so we
+                        // don't misclassify a later unrelated `{` as the body.
+                        if (awaitBrace) awaitBrace = false
+                    }
+                    '{' -> {
+                        if (awaitBrace) {
+                            // Body opens here at the current brace depth.
+                            frames.addLast(depth)
+                            awaitBrace = false
+                            // Lines that open a fun body partway through still
+                            // contain local code after the `{`. The KPP013 regex
+                            // anchors at line start (var must be at indent), so
+                            // this case only matters if a `var` appears before
+                            // the `{` on the same line — which would be a fun
+                            // *parameter*, not a leading `var` line. Safe.
+                        }
+                        depth++
+                    }
+                    '}' -> {
+                        depth--
+                        // Pop any fun-body frames we've now closed.
+                        while (frames.isNotEmpty() && depth <= frames.last()) {
+                            frames.removeLast()
+                        }
+                    }
+                }
+                i++
+            }
+        }
+        return res
     }
 
     // Pre-scan suppression directives. Recognises:

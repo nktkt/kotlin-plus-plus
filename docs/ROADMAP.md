@@ -141,6 +141,11 @@ The spec's wall-clock buckets, restated:
       JDK-proxy spy, `VirtualClock`, `CaptureLogger`
 - [x] `dev.kotlinplusplus.kpp` Gradle plugin packages the analyzer for
       adoption by other projects
+- [x] Public on GitHub at `nktkt/kotlin-plus-plus`
+- [x] GitHub Actions CI: runs `gradle test` + analyzer dogfood on every
+      push to main and pull request; uploads test reports on failure
+- [x] Issue templates (bug / feature / new analyzer rule), PR template,
+      Dependabot for Gradle and GitHub Actions, `CONTRIBUTING.md`
 - [x] Library-level structured concurrency that preserves typed errors
       across `async`/`await` boundaries (`kpp-concurrent`)
 - [x] Phase-4 runtime reflection stub for `@DeriveJson` so user code
