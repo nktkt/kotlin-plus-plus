@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+(no changes since 0.3.0)
+
+## [0.3.0] - 2026-04-28
+
+Minor release. New `kpp-secret` module, new `@DeriveJson` opt-in flag,
+new KPP007 analyzer rule. New analyzer rules can surface violations on
+existing consumer code, hence the minor bump.
+
 ### Added
 - **`libs/kpp-secret`** — new module shipping `Secret<T>`, a wrapper
   that hides its value in `toString` (`"Secret(***)"`) and in default
@@ -30,8 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Shipped analyzer rules: 9 → 10 (KPP001, KPP002, KPP004, KPP005,
   KPP007, KPP008, KPP011, KPP013, KPP017, KPP018).
 - Module count: 8 → 9 libs (added `kpp-secret`).
-- Test total: 168 → 195. Coverage will be re-measured at the next
-  release tag.
+- Test total: 168 → 195. Line coverage at 0.3.0: 83.1% (1174 / 1413).
 
 ## [0.2.0] - 2026-04-28
 
@@ -132,7 +139,8 @@ strict analyzer, and a Gradle plugin packaging the analyzer.
 - `CONTRIBUTING.md`.
 - Manifesto, syntax mapping, roadmap, rules reference under `docs/`.
 
-[Unreleased]: https://github.com/nktkt/kotlin-plus-plus/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/nktkt/kotlin-plus-plus/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.3.0
 [0.2.0]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.2.0
 [0.1.1]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.1.1
 [0.1.0]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.1.0
