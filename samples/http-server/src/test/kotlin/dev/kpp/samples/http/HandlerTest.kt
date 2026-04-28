@@ -17,7 +17,7 @@ class HandlerTest {
                     method = "POST",
                     path = "/users",
                     query = emptyMap(),
-                    body = """{"email":"a@b.com","display_name":"Alice"}""",
+                    body = """{"email":"a@b.com","display_name":"Alice","api_key":"test-key-001"}""",
                 ),
             )
             assertEquals(201, resp.status)
@@ -46,12 +46,32 @@ class HandlerTest {
                     method = "POST",
                     path = "/users",
                     query = emptyMap(),
-                    body = """{"email":"bad","display_name":""}""",
+                    body = """{"email":"bad","display_name":"","api_key":"test-key-001"}""",
                 ),
             )
             assertEquals(400, resp.status)
             val payload = Json.decode<Map<String, Any?>>(resp.body)
             assertEquals("Validation", payload["error"])
+        }
+    }
+
+    @Test
+    fun request_with_missing_api_key_returns_400_validation() = runTest {
+        withCapabilities(InMemoryUserRepository()) {
+            val resp = handle(
+                Request(
+                    method = "POST",
+                    path = "/users",
+                    query = emptyMap(),
+                    body = """{"email":"a@b.com","display_name":"Alice"}""",
+                ),
+            )
+            assertEquals(400, resp.status)
+            val payload = Json.decode<Map<String, Any?>>(resp.body)
+            assertEquals("Validation", payload["error"])
+            @Suppress("UNCHECKED_CAST")
+            val details = payload["details"] as Map<String, Any?>
+            assertEquals("api_key", details["field"])
         }
     }
 

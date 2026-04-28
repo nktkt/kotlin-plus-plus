@@ -50,7 +50,7 @@ first-class — without forking the compiler.
     └── http-server/          # flagship demo: every module composing
 ```
 
-The repo currently has 296 tests, all green across 11 modules.
+The repo currently has 299 tests, all green across 11 modules.
 Line coverage: **90.66%** (1281 / 1413).
 Analyzer dogfood against the repo: **0 violations**.
 
@@ -104,7 +104,7 @@ gradle :libs:kpp-analyzer:kppCheck
 gradle koverHtmlReport       # aggregated coverage at build/reports/kover/html/
 ```
 
-296 tests, 0 failures, 90.66% line coverage. The analyzer's dogfood
+299 tests, 0 failures, 90.66% line coverage. The analyzer's dogfood
 pass over the entire repo currently reports 0 violations.
 
 ## Status

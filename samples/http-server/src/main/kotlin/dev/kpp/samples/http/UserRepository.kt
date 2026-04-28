@@ -29,6 +29,9 @@ class InMemoryUserRepository : UserRepository {
         if (req.displayName.isBlank()) {
             return err(ApiError.Validation("displayName", "must not be blank"))
         }
+        if (req.apiKey.expose().isBlank()) {
+            return err(ApiError.Validation("api_key", "missing or blank"))
+        }
         val user = User(
             id = UUID.randomUUID().toString(),
             email = req.email,

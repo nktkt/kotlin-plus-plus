@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **`samples:http-server`** now exercises `Secret<String>` end-to-end:
+  `CreateUserRequest` carries `apiKey: Secret<String>`; clients send
+  `"api_key"` on the wire; the handler decodes the body as
+  `Map<String, Any?>` (since `kpp-derive`'s decoder rejects
+  `Secret<*>`) and lifts the key with `.toSecret()`. The sample now
+  prints both an `AuditEntry` (`@DeriveJson` default — `caller_api_key`
+  emitted as `"[REDACTED]"`) and an `AuditEntryDiagnostic`
+  (`@DeriveJson(allowSecrets = true)` — exposes the inner value),
+  proving the redaction contract in production-shaped JSON output.
+  3 new sample tests, 1 existing test updated.
+- **CI workflow** — bumped GitHub Actions to Node.js 24 compatible
+  releases: `actions/checkout` v4 → v6, `actions/setup-java` v4 → v5,
+  `gradle/actions/setup-gradle` v4 → v6, `actions/upload-artifact`
+  v4 → v7. Resolves the `Node.js 20 actions are deprecated` warning
+  and obsoletes Dependabot PRs #1–#4 (auto-closed).
+
 ### Added
 - 101 new tests boosting line coverage from **83.1% → 90.66%**
   (1174 / 1413 → 1281 / 1413). Test-only changes; no production code

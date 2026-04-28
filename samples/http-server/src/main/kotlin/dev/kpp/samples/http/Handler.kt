@@ -8,6 +8,7 @@ import dev.kpp.derive.Json
 import dev.kpp.samples.http.handlers.createUser
 import dev.kpp.samples.http.handlers.getUser
 import dev.kpp.samples.http.handlers.getUsersBatch
+import dev.kpp.secret.toSecret
 
 data class Request(
     val method: String,
@@ -64,11 +65,20 @@ private suspend fun Capabilities.handleCreateUser(req: Request): Response {
 
 private fun parseCreateUserRequest(body: String?): Result<CreateUserRequest, ApiError> {
     if (body == null) return err(ApiError.BadJson("missing body"))
-    return runCatching { Json.decode<CreateUserRequest>(body) }
-        .fold(
-            { ok(it) },
-            { err(ApiError.BadJson(it.message ?: "parse failed")) },
-        )
+    // Json.decode<CreateUserRequest>(body) cannot be used: the kpp-derive
+    // decoder rejects Secret<*> parameter types by design (an attacker-shaped
+    // payload should not be able to mint a Secret directly via reflection).
+    // We parse to a generic map and lift the api_key string into Secret<String>
+    // ourselves at the boundary, which is the documented manual path.
+    val raw: Map<String, Any?> = runCatching { Json.decode<Map<String, Any?>>(body) }
+        .fold({ it }, { return err(ApiError.BadJson(it.message ?: "parse failed")) })
+    val email = raw["email"] as? String
+        ?: return err(ApiError.Validation("email", "missing or not a string"))
+    val displayName = raw["display_name"] as? String
+        ?: return err(ApiError.Validation("display_name", "missing or not a string"))
+    val apiKey = raw["api_key"] as? String
+    if (apiKey.isNullOrBlank()) return err(ApiError.Validation("api_key", "missing or blank"))
+    return ok(CreateUserRequest(email = email, displayName = displayName, apiKey = apiKey.toSecret()))
 }
 
 private fun errorResponse(error: ApiError): Response {
