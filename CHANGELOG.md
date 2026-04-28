@@ -7,7 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-(no changes since 0.1.1)
+### Added
+- KPP008 (ignored `@Io`/`@Db` return) — regex rule, severity warning.
+  Mirrors KPP001 but keys on the side-effect annotations instead of
+  `@MustHandle`. KPP001 wins when both are applicable.
+- KPP017 (`kotlin.reflect.*` in production code) — regex rule,
+  severity warning. Skips `/src/test/` and `/src/testFixtures/`. Use
+  `@file:Suppress("KPP017")` when reflection is intentional.
+- 12 new analyzer tests (6 per rule plus a registry-size assertion).
+
+### Changed
+- Shipped analyzer rules: 7 → 9 (KPP001, KPP002, KPP004, KPP005, KPP008,
+  KPP011, KPP013, KPP017, KPP018).
+- `kpp-capability/Capabilities.kt`, `kpp-derive/{Json,Internal}.kt`,
+  and `kpp-test/RecordingCapabilities.kt` now carry
+  `@file:Suppress("KPP017")` directives with a justifying comment —
+  these uses of reflection are intentional and the future FIR plugin
+  will obviate them.
+- Total tests: 156 → 168.
 
 ## [0.1.1] - 2026-04-28
 

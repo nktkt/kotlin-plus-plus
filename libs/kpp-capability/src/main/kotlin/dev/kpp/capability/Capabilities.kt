@@ -1,3 +1,5 @@
+@file:Suppress("KPP017") // reflection-based capability dispatch — replaced by FIR plugin in Phase 5
+
 package dev.kpp.capability
 
 import kotlin.reflect.KClass

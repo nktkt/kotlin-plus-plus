@@ -28,8 +28,10 @@ runtime effect:
 | KPP002 | error    | "Raw exception catch"     | `catch (_: Throwable \| Exception \| RuntimeException)` clauses; advises a specific exception type or `Result<T, E>`. |
 | KPP004 | error    | "Mutable public APIs"     | `public fun` returning `MutableList`/`MutableMap`/`MutableSet`. |
 | KPP005 | error    | "Mutable field on @Immutable" | `@Immutable` data class whose primary constructor uses `var`, or whose properties are typed `MutableList`/`MutableMap`/`MutableSet`/`ArrayList`/`HashMap`/`HashSet`. |
+| KPP008 | warning  | "Ignored side-effecting return" | Calls to `@Io`/`@Db` functions whose return value is discarded as a statement. Disjoint from KPP001: a call site annotated both `@MustHandle` and `@Io`/`@Db` fires KPP001 only. |
 | KPP011 | error    | "Blocking calls inside suspend" | Calls to `Thread.sleep`, `runBlocking`, `URL(...).readText`, `File.readText` inside a `suspend fun` body. |
 | KPP013 | warning  | "public var property"      | Top-level or class-body `var` without an explicit `private`/`internal`/`protected` modifier. Local `var`s inside `fun` bodies and constructor `var` parameters are excluded (the latter are caught by KPP005/KPP007). Promoted to error in Phase 3. |
+| KPP017 | warning  | "Reflection in production" | Production code (anything outside `src/test/` or `src/testFixtures/`) imports `kotlin.reflect.*`. Suppress per file with `@file:Suppress("KPP017")` if the reflection is intentional. |
 | KPP018 | error    | "Exceptions escaping public APIs" | `public fun` annotated with `@Throws(...)`, or whose body contains a `throw` not wrapped in `try`. |
 
 The remaining rules from the KPP001..KPP018 spec (effect-system tagging

@@ -1,3 +1,5 @@
+@file:Suppress("KPP017") // reflection-based serializer derivation — replaced by FIR plugin in Phase 5
+
 package dev.kpp.derive
 
 import kotlin.reflect.KClass

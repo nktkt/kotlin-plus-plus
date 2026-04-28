@@ -32,12 +32,15 @@ exists.
 - [x] KPP002 — catching raw `Throwable`/`Exception`/`RuntimeException`
 - [x] KPP004 — `MutableList`/`MutableMap`/`MutableSet` on public API
 - [x] KPP005 — `@Immutable` data class with `var`/`MutableList`/etc.
+- [x] KPP008 — `@Io`/`@Db` return value discarded as a statement
 - [x] KPP011 — blocking call inside `suspend fun`
+- [x] KPP013 — `public var` property
+- [x] KPP017 — `kotlin.reflect.*` import in non-test source
 - [x] KPP018 — exception escapes public API
 - [x] Suppression: `// noinspection KPPxxx` per line + per-file
       `@file:Suppress("KPPxxx", ...)`
-- [ ] KPP003, KPP006..KPP010, KPP012..KPP017 — catalogued in
-      `RULES.md`, not yet implemented
+- [ ] KPP003, KPP006, KPP007, KPP009, KPP010, KPP012, KPP014..KPP016
+      — catalogued in `RULES.md`, not yet implemented
 - [ ] IntelliJ inspections that surface KPP* in the editor
 - [ ] K2 FIR compiler plugin — replaces all regex heuristics with real
       type-resolved diagnostics; eliminates false positives and

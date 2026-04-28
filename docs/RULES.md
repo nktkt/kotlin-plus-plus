@@ -22,7 +22,7 @@ All rule IDs are stable. Severities marked `error` block CI;
 | KPP005 | Mutable field on `@Immutable`         | error    | shipped       | `@Immutable` data class has `var` or `MutableList`/`MutableMap`/`MutableSet` field. |
 | KPP006 | Suspend not cancellable               | warning  | planned       | `suspend fun` body does not yield (no `yield()`, no real suspension point) over a long-running loop. |
 | KPP007 | Unbounded mutability inside `data class` | error  | planned       | `data class` field typed as `var` or as a mutable collection. (Superset of KPP005; KPP005 is the `@Immutable`-marked subset that shipped first.) |
-| KPP008 | Ignored side-effecting return         | warning  | planned       | `@Io`/`@Db` function called as a statement; result not bound or consumed. |
+| KPP008 | Ignored side-effecting return         | warning  | shipped       | `@Io`/`@Db` function called as a statement; result not bound or consumed. |
 | KPP009 | Missing capability binding            | error    | planned       | Function uses `get<C>()` for a `C` not declared in `@RequiresCapabilities`. |
 | KPP010 | Capability shadowing                  | warning  | planned       | `withCapabilities` block re-binds a capability already present in the parent bag with a different runtime type. |
 | KPP011 | Blocking call inside suspend          | error    | shipped       | `Thread.sleep`, `runBlocking`, `URL(...).readText`, `File.readText` inside a `suspend fun`. |
@@ -31,7 +31,7 @@ All rule IDs are stable. Severities marked `error` block CI;
 | KPP014 | Non-exhaustive `when` over `error`    | error    | compiler-only | `when` over a sealed `KppError` lacks an `else` arm and misses a case.   |
 | KPP015 | `null` on `! E` channel               | error    | planned       | A function returning `T ! E` returns `null` instead of an `Err`.         |
 | KPP016 | Operator overload abuse               | warning  | planned       | Operator function with non-algebraic semantics (e.g. `plus` performs IO). |
-| KPP017 | Reflection in production code         | warning  | planned       | Use of `kotlin.reflect.*` outside test sources without an opt-in.        |
+| KPP017 | Reflection in production code         | warning  | shipped       | Use of `kotlin.reflect.*` outside test sources; suppress per file with `@file:Suppress("KPP017")` when reflection is intentional. |
 | KPP018 | Exception escapes public API          | error    | shipped       | `public fun` with `@Throws(...)` or with a `throw` not wrapped in `try`. |
 
 ## Notes on the regex tier

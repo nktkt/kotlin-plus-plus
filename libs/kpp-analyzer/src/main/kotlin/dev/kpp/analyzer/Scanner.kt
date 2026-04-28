@@ -34,6 +34,10 @@ class KppScanner(val roots: List<File>) {
         // Use masked content so @MustHandle / fun ... appearing inside test-fixture
         // string literals doesn't add fake names to the must-handle set.
         val mustHandleNames = collectMustHandleNames(ktFiles)
+        // Same idea for KPP008: collect @Io / @Db function names across the tree.
+        // Names that also appear in mustHandleNames are removed below so KPP001
+        // (higher severity) is the only rule that fires for those call sites.
+        val ioOrDbNames = collectIoOrDbNames(ktFiles) - mustHandleNames
 
         val out = mutableListOf<Violation>()
         // file -> suppressions, computed once per file.
@@ -53,7 +57,7 @@ class KppScanner(val roots: List<File>) {
             // ScannerTest.kt embeds Kotlin code samples inside triple-quoted strings,
             // and without masking those samples trip the same regex rules they assert.
             val maskedLines = maskFile(rawLines)
-            scanFile(file, maskedLines, mustHandleNames, out, kpp005Anchors)
+            scanFile(file, maskedLines, mustHandleNames, ioOrDbNames, out, kpp005Anchors)
         }
 
         return out.filter { v ->
@@ -101,6 +105,43 @@ class KppScanner(val roots: List<File>) {
         return names
     }
 
+    // Sibling of collectMustHandleNames for KPP008. Collects function names
+    // declared with @Io and/or @Db on their annotation block. The arming
+    // discipline mirrors the must-handle collector: stay armed across blank
+    // and other annotation lines, disarm on any other declaration.
+    private fun collectIoOrDbNames(files: List<File>): Set<String> {
+        val names = mutableSetOf<String>()
+        val funDecl = Regex("""\bfun\s+(?:<[^>]+>\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(""")
+        for (f in files) {
+            val raw = runCatching { f.readLines() }.getOrNull() ?: continue
+            val lines = maskFile(raw)
+            var armed = false
+            for (line in lines) {
+                val trimmed = line.trim()
+                if (trimmed.startsWith("//")) continue
+                if (trimmed.contains("@Io") || trimmed.contains("@Db")) {
+                    armed = true
+                    val m = funDecl.find(trimmed)
+                    if (m != null) {
+                        names += m.groupValues[1]
+                        armed = false
+                    }
+                    continue
+                }
+                if (armed) {
+                    val m = funDecl.find(trimmed)
+                    if (m != null) {
+                        names += m.groupValues[1]
+                        armed = false
+                    } else if (trimmed.isNotBlank() && !trimmed.startsWith("@")) {
+                        armed = false
+                    }
+                }
+            }
+        }
+        return names
+    }
+
     // `lines` here is already masked (string literals + line comments replaced
     // with spaces, length-preserving) so substring/regex tests fire on logical
     // Kotlin code only. Indices/columns still align with the original file.
@@ -108,9 +149,33 @@ class KppScanner(val roots: List<File>) {
         file: File,
         lines: List<String>,
         mustHandleNames: Set<String>,
+        ioOrDbNames: Set<String>,
         out: MutableList<Violation>,
         kpp005Anchors: MutableMap<Pair<File, Int>, Int>,
     ) {
+        // KPP017: production-code reflection. Skip test/testFixtures sources
+        // entirely; otherwise emit a single violation pointing at the first
+        // `import kotlin.reflect...` line in the file.
+        run {
+            val abs = file.absolutePath
+            val isTestSource = abs.contains("/src/test/") || abs.contains("/src/testFixtures/")
+            if (!isTestSource) {
+                val reflectImport = Regex("""^import\s+kotlin\.reflect(?:\.|\b)""")
+                for ((idx, raw) in lines.withIndex()) {
+                    if (reflectImport.containsMatchIn(raw)) {
+                        out += Violation(
+                            ruleId = "KPP017",
+                            file = file,
+                            line = idx + 1,
+                            column = 1,
+                            message = "production code imports kotlin.reflect.*; use @file:Suppress(\"KPP017\") if intentional",
+                        )
+                        break
+                    }
+                }
+            }
+        }
+
         // Brace-depth tracker for "inside suspend fun" detection.
         var suspendDepth = -1 // depth at which the current suspend body starts; -1 = none
         var depth = 0
@@ -254,6 +319,32 @@ class KppScanner(val roots: List<File>) {
             val m = standaloneCall.find(trimmed)
             if (m != null) {
                 val name = m.groupValues[1]
+                // Detect chaining: after the matched `name(`, find the closing
+                // `)` at paren depth 0 and check if the next non-space char is
+                // `.` (e.g. `fetch().toLowerCase()`). If so, the result flows
+                // into the chain and isn't actually discarded.
+                val chained = run {
+                    val open = trimmed.indexOf('(', startIndex = m.range.last)
+                    if (open < 0) false else {
+                        var depth = 0
+                        var k = open
+                        var closeIdx = -1
+                        while (k < trimmed.length) {
+                            val ch = trimmed[k]
+                            if (ch == '(') depth++
+                            else if (ch == ')') {
+                                depth--
+                                if (depth == 0) { closeIdx = k; break }
+                            }
+                            k++
+                        }
+                        if (closeIdx < 0) false else {
+                            var j = closeIdx + 1
+                            while (j < trimmed.length && trimmed[j] == ' ') j++
+                            j < trimmed.length && trimmed[j] == '.'
+                        }
+                    }
+                }
                 val excluded = trimmed.startsWith("//") ||
                     trimmed.startsWith("/*") ||
                     trimmed.startsWith("return") ||
@@ -269,7 +360,8 @@ class KppScanner(val roots: List<File>) {
                     trimmed.startsWith("while ") ||
                     name == "if" || name == "when" || name == "for" || name == "while" ||
                     trimmed.contains(" = ") ||
-                    trimmed.startsWith("=")
+                    trimmed.startsWith("=") ||
+                    chained
                 if (!excluded && name in mustHandleNames) {
                     out += Violation(
                         ruleId = "KPP001",
@@ -277,6 +369,17 @@ class KppScanner(val roots: List<File>) {
                         line = lineNo,
                         column = (line.indexOf(name) + 1).coerceAtLeast(1),
                         message = "return value of @MustHandle function '$name' is discarded",
+                    )
+                } else if (!excluded && name in ioOrDbNames) {
+                    // KPP008. Disjoint from KPP001 by construction: ioOrDbNames had
+                    // mustHandleNames removed up front, so a function annotated both
+                    // @MustHandle and @Io/@Db only fires KPP001 (higher severity).
+                    out += Violation(
+                        ruleId = "KPP008",
+                        file = file,
+                        line = lineNo,
+                        column = (line.indexOf(name) + 1).coerceAtLeast(1),
+                        message = "return value of side-effecting function '$name' (@Io/@Db) is discarded",
                     )
                 }
             }

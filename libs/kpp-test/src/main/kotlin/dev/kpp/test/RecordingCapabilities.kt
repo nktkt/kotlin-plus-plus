@@ -1,3 +1,5 @@
+@file:Suppress("KPP017") // recording-proxy spy needs KClass to key per-capability records — replaced by FIR plugin in Phase 5
+
 package dev.kpp.test
 
 import dev.kpp.capability.Capability

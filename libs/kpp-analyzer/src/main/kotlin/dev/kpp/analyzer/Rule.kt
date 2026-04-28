@@ -45,6 +45,12 @@ val KPP_RULES: List<Rule> = listOf(
         description = "@Immutable data class must use val + immutable collection types",
     ),
     Rule(
+        id = "KPP008",
+        name = "ignored-side-effecting-return",
+        severity = Severity.WARN,
+        description = "calling an @Io or @Db function as a statement and discarding the return value",
+    ),
+    Rule(
         id = "KPP011",
         name = "blocking-in-suspend",
         severity = Severity.ERROR,
@@ -55,6 +61,12 @@ val KPP_RULES: List<Rule> = listOf(
         name = "public var",
         severity = Severity.WARN,
         description = "public var defeats Kotlin's preference for read-only properties; use val + private var if mutation is needed",
+    ),
+    Rule(
+        id = "KPP017",
+        name = "reflection-in-production",
+        severity = Severity.WARN,
+        description = "production code uses kotlin.reflect.*; suppress per file with `@file:Suppress(\"KPP017\")` if the reflection is intentional",
     ),
     Rule(
         id = "KPP018",

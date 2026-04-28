@@ -48,8 +48,8 @@ first-class — without forking the compiler.
     └── http-server/          # flagship demo: every module composing
 ```
 
-The repo currently has 156 tests, all green: 24 (kpp-core) + 11 (kpp-capability) +
-24 (kpp-analyzer) + 23 (kpp-immutable) + 11 (kpp-concurrent) + 28 (kpp-derive)
+The repo currently has 168 tests, all green: 24 (kpp-core) + 11 (kpp-capability) +
+36 (kpp-analyzer) + 23 (kpp-immutable) + 11 (kpp-concurrent) + 28 (kpp-derive)
 + 21 (kpp-test) + 3 (kpp-gradle-plugin TestKit) + 3 (samples:payment) + 8 (samples:http-server).
 Analyzer dogfood against the repo: **0 violations**.
 
@@ -102,7 +102,7 @@ gradle :samples:http-server:run
 gradle :libs:kpp-analyzer:kppCheck
 ```
 
-156 tests, 0 failures. The analyzer's dogfood pass over the entire
+168 tests, 0 failures. The analyzer's dogfood pass over the entire
 repo currently reports 0 violations.
 
 ## Status
@@ -113,7 +113,7 @@ repo currently reports 0 violations.
 | Error declaration `error Foo { ... }`    | `sealed interface Foo : KppError`            | shipped       |
 | Capability context                       | `Capabilities`, `withCapabilities(...)`      | shipped       |
 | Built-in capabilities                    | `Logger`, `Clock`                            | shipped       |
-| Analyzer rules                           | KPP001, KPP002, KPP004, KPP005, KPP011, KPP013, KPP018 | shipped |
+| Analyzer rules                           | KPP001, KPP002, KPP004, KPP005, KPP008, KPP011, KPP013, KPP017, KPP018 | shipped |
 | Analyzer suppressions                    | `// noinspection KPPxxx` and `@file:Suppress`| shipped       |
 | Effect modifiers `pure`/`io`/`db`        | `@Pure`/`@Io`/`@Db`/`@Blocking` annotations  | partial       |
 | Effect inference / propagation           | requires K2 FIR plugin                       | planned       |

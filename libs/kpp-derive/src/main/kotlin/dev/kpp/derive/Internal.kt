@@ -1,3 +1,5 @@
+@file:Suppress("KPP017") // shared internals for the reflection-based derive package — replaced by FIR plugin in Phase 5
+
 package dev.kpp.derive
 
 internal fun camelToSnake(name: String): String {

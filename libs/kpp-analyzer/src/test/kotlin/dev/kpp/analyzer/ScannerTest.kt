@@ -407,4 +407,223 @@ class ScannerTest {
         assertTrue(rule != null, "KPP013 not registered")
         assertEquals(Severity.WARN, rule!!.severity)
     }
+
+    @Test
+    fun kpp008_fires_on_ignored_io_call() = withTempTree { dir ->
+        val f = dir.resolve("Kpp008Io.kt")
+        f.writeText(
+            """
+            package sample
+
+            @Io
+            fun fetch(): String = "x"
+
+            fun consumer() {
+                fetch()
+            }
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP008" }
+        assertEquals(1, violations.size, "expected 1 KPP008, got=$violations")
+    }
+
+    @Test
+    fun kpp008_fires_on_ignored_db_call() = withTempTree { dir ->
+        val f = dir.resolve("Kpp008Db.kt")
+        f.writeText(
+            """
+            package sample
+
+            @Db
+            fun fetch(): String = "x"
+
+            fun consumer() {
+                fetch()
+            }
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP008" }
+        assertEquals(1, violations.size, "expected 1 KPP008, got=$violations")
+    }
+
+    @Test
+    fun kpp008_does_not_fire_when_assigned() = withTempTree { dir ->
+        val f = dir.resolve("Kpp008Assigned.kt")
+        f.writeText(
+            """
+            package sample
+
+            @Io
+            fun fetch(): String = "x"
+
+            fun consumer() {
+                val r = fetch()
+            }
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP008" }
+        assertTrue(violations.isEmpty(), "expected no KPP008, got=$violations")
+    }
+
+    @Test
+    fun kpp008_does_not_fire_when_returned() = withTempTree { dir ->
+        val f = dir.resolve("Kpp008Returned.kt")
+        f.writeText(
+            """
+            package sample
+
+            @Io
+            fun fetch(): String = "x"
+
+            fun consumer(): String {
+                return fetch()
+            }
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP008" }
+        assertTrue(violations.isEmpty(), "expected no KPP008, got=$violations")
+    }
+
+    @Test
+    fun kpp008_does_not_fire_for_must_handle() = withTempTree { dir ->
+        val f = dir.resolve("Kpp008MustHandle.kt")
+        f.writeText(
+            """
+            package sample
+
+            @MustHandle
+            fun fetch(): String = "x"
+
+            fun consumer() {
+                fetch()
+            }
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan()
+        assertTrue(violations.any { it.ruleId == "KPP001" }, "expected KPP001, got=$violations")
+        assertFalse(violations.any { it.ruleId == "KPP008" }, "did not expect KPP008, got=$violations")
+    }
+
+    @Test
+    fun kpp008_does_not_fire_when_chained() = withTempTree { dir ->
+        val f = dir.resolve("Kpp008Chained.kt")
+        f.writeText(
+            """
+            package sample
+
+            @Io
+            fun fetch(): String = "x"
+
+            fun consumer() {
+                fetch().toLowerCase()
+            }
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP008" }
+        assertTrue(violations.isEmpty(), "expected no KPP008, got=$violations")
+    }
+
+    @Test
+    fun kpp017_fires_on_kotlin_reflect_import() = withTempTree { dir ->
+        val src = dir.resolve("src/main/kotlin")
+        Files.createDirectories(src)
+        val f = src.resolve("Foo.kt")
+        f.writeText(
+            """
+            package sample
+
+            import kotlin.reflect.full.allSupertypes
+
+            class Foo
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP017" }
+        assertEquals(1, violations.size, "expected 1 KPP017, got=$violations")
+    }
+
+    @Test
+    fun kpp017_fires_once_per_file_even_with_multiple_imports() = withTempTree { dir ->
+        val src = dir.resolve("src/main/kotlin")
+        Files.createDirectories(src)
+        val f = src.resolve("Foo.kt")
+        f.writeText(
+            """
+            package sample
+
+            import kotlin.reflect.KClass
+            import kotlin.reflect.full.allSupertypes
+            import kotlin.reflect.full.memberProperties
+
+            class Foo
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP017" }
+        assertEquals(1, violations.size, "expected exactly 1 KPP017, got=$violations")
+    }
+
+    @Test
+    fun kpp017_skips_test_sources() = withTempTree { dir ->
+        val src = dir.resolve("src/test/kotlin")
+        Files.createDirectories(src)
+        val f = src.resolve("Foo.kt")
+        f.writeText(
+            """
+            package sample
+
+            import kotlin.reflect.full.allSupertypes
+
+            class Foo
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP017" }
+        assertTrue(violations.isEmpty(), "expected no KPP017 in test sources, got=$violations")
+    }
+
+    @Test
+    fun kpp017_does_not_fire_on_java_reflect() = withTempTree { dir ->
+        val src = dir.resolve("src/main/kotlin")
+        Files.createDirectories(src)
+        val f = src.resolve("Foo.kt")
+        f.writeText(
+            """
+            package sample
+
+            import java.lang.reflect.Proxy
+
+            class Foo
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP017" }
+        assertTrue(violations.isEmpty(), "expected no KPP017 for java.lang.reflect, got=$violations")
+    }
+
+    @Test
+    fun kpp017_suppressed_by_file_level_directive() = withTempTree { dir ->
+        val src = dir.resolve("src/main/kotlin")
+        Files.createDirectories(src)
+        val f = src.resolve("Foo.kt")
+        f.writeText(
+            """
+            @file:Suppress("KPP017")
+
+            package sample
+
+            import kotlin.reflect.full.allSupertypes
+
+            class Foo
+            """.trimIndent(),
+        )
+        val violations = KppScanner(listOf(dir.toFile())).scan().filter { it.ruleId == "KPP017" }
+        assertTrue(violations.isEmpty(), "expected KPP017 to be suppressed, got=$violations")
+    }
+
+    @Test
+    fun registry_contains_kpp008_and_kpp017() {
+        val k8 = KPP_RULES.firstOrNull { it.id == "KPP008" }
+        val k17 = KPP_RULES.firstOrNull { it.id == "KPP017" }
+        assertTrue(k8 != null, "KPP008 not registered")
+        assertTrue(k17 != null, "KPP017 not registered")
+        assertEquals(Severity.WARN, k8!!.severity)
+        assertEquals(Severity.WARN, k17!!.severity)
+    }
 }
