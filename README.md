@@ -1,5 +1,10 @@
 # Kotlin++
 
+[![CI](https://github.com/nktkt/kotlin-plus-plus/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nktkt/kotlin-plus-plus/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/nktkt/kotlin-plus-plus?display_name=tag&sort=semver)](https://github.com/nktkt/kotlin-plus-plus/releases)
+[![Kotlin](https://img.shields.io/badge/kotlin-2.2-blueviolet.svg?logo=kotlin)](https://kotlinlang.org/)
+[![JDK](https://img.shields.io/badge/JDK-21-orange.svg)](https://adoptium.net/)
+
 > Typed errors. Capability-based DI. A strict analyzer that refuses
 > foot-guns. Library-level emulation of a hypothetical Kotlin successor —
 > usable today on plain Kotlin/JVM 2.2.

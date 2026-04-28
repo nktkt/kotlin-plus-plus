@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-(no changes since 0.1.0)
+(no changes since 0.1.1)
+
+## [0.1.1] - 2026-04-28
+
+### Fixed
+- CI: `gradle/actions/setup-gradle@v4` requires the full Gradle version
+  (e.g. `9.2.0`) and rejects shorthand (`9.2`). Pin updated. CI on `main`
+  now runs `gradle test` and the analyzer dogfood pass to completion.
+
+### Added
+- README badges: CI status, latest release, Kotlin 2.2, JDK 21.
 
 ## [0.1.0] - 2026-04-28
 
@@ -68,5 +78,6 @@ strict analyzer, and a Gradle plugin packaging the analyzer.
 - `CONTRIBUTING.md`.
 - Manifesto, syntax mapping, roadmap, rules reference under `docs/`.
 
-[Unreleased]: https://github.com/nktkt/kotlin-plus-plus/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/nktkt/kotlin-plus-plus/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.1.1
 [0.1.0]: https://github.com/nktkt/kotlin-plus-plus/releases/tag/v0.1.0
