@@ -21,6 +21,12 @@ private const val SHARED_HELPERS_PACKAGE = "dev.kpp.derive.ksp.generated"
 private const val SHARED_HELPERS_FILE = "DeriveJsonGeneratedHelpers"
 private const val ESCAPE_FN = "__kppEscapeJsonString"
 
+// Map<String, T> with non-String keys is rejected at categorize() time. To
+// smoke-test that path manually: change the `labels` field on
+// `samples/derive-ksp-demo/...Models.kt::Tags` to `Map<Int, String>`,
+// then run `gradle :samples:derive-ksp-demo:build`. Expect a KSP error
+// pointing at the offending parameter; the build must fail before generating
+// `Tags_DeriveJson.kt`.
 class DeriveJsonProcessor(
     private val env: SymbolProcessorEnvironment,
 ) : SymbolProcessor {
@@ -38,7 +44,8 @@ class DeriveJsonProcessor(
         var anyValid = false
         for (cls in classes) {
             val params = collectEmittedParams(cls) ?: continue
-            val ok = generateForClass(cls, params)
+            val allowSecrets = readAllowSecrets(cls)
+            val ok = generateForClass(cls, params, allowSecrets)
             if (ok) anyValid = true
         }
 
@@ -133,19 +140,29 @@ class DeriveJsonProcessor(
         return arg?.value as? String
     }
 
-    private fun readSnakeCase(cls: KSClassDeclaration): Boolean {
+    private fun readSnakeCase(cls: KSClassDeclaration): Boolean =
+        readDeriveJsonBoolean(cls, "snakeCase")
+
+    private fun readAllowSecrets(cls: KSClassDeclaration): Boolean =
+        readDeriveJsonBoolean(cls, "allowSecrets")
+
+    private fun readDeriveJsonBoolean(cls: KSClassDeclaration, name: String): Boolean {
         val ann = cls.annotations.firstOrNull { it.shortName.asString() == "DeriveJson" }
             ?: return false
-        val arg = ann.arguments.firstOrNull { it.name?.asString() == "snakeCase" }
+        val arg = ann.arguments.firstOrNull { it.name?.asString() == name }
         return (arg?.value as? Boolean) ?: false
     }
 
-    private fun generateForClass(cls: KSClassDeclaration, params: List<EmittedParam>): Boolean {
+    private fun generateForClass(
+        cls: KSClassDeclaration,
+        params: List<EmittedParam>,
+        allowSecrets: Boolean,
+    ): Boolean {
         val pkg = cls.packageName.asString()
         val simple = cls.simpleName.asString()
         val ksFile = cls.containingFile ?: return false
 
-        val src = buildClassExtensionSource(pkg, simple, params)
+        val src = buildClassExtensionSource(pkg, simple, params, allowSecrets)
         val deps = Dependencies(false, ksFile)
         val out = env.codeGenerator.createNewFile(deps, pkg, "${simple}_DeriveJson")
         OutputStreamWriter(out, StandardCharsets.UTF_8).use { it.write(src) }
@@ -156,6 +173,7 @@ class DeriveJsonProcessor(
         pkg: String,
         simple: String,
         params: List<EmittedParam>,
+        allowSecrets: Boolean,
     ): String {
         val sb = StringBuilder()
         if (pkg.isNotEmpty()) {
@@ -180,8 +198,8 @@ class DeriveJsonProcessor(
             sb.append("    sb.append(':')\n")
 
             // Emit the value. We delegate to a recursive emitter that knows how
-            // to walk Nullable/List/Nested categories.
-            emitValue(sb, "this.${ep.propName}", ep.category, indent = "    ")
+            // to walk Nullable/List/Map/Nested/Secret categories.
+            emitValue(sb, "this.${ep.propName}", ep.category, indent = "    ", allowSecrets = allowSecrets)
         }
         sb.append("    sb.append('}')\n")
         sb.append("    return sb.toString()\n")
@@ -193,8 +211,16 @@ class DeriveJsonProcessor(
      * Recursively emit code that appends the JSON encoding of [expr] (a Kotlin
      * source-level expression of the appropriate type) to a StringBuilder named `sb`.
      * [indent] is the line prefix of generated code (so the output stays tidy).
+     * [allowSecrets] propagates the enclosing class's @DeriveJson(allowSecrets) flag
+     * so Secret<T> leaves can either redact or expose+delegate.
      */
-    private fun emitValue(sb: StringBuilder, expr: String, cat: TypeCategory, indent: String) {
+    private fun emitValue(
+        sb: StringBuilder,
+        expr: String,
+        cat: TypeCategory,
+        indent: String,
+        allowSecrets: Boolean,
+    ) {
         when (cat) {
             is TypeCategory.Primitive -> emitPrimitive(sb, expr, cat.fqn, indent)
             is TypeCategory.NestedDeriveJson -> {
@@ -214,7 +240,7 @@ class DeriveJsonProcessor(
                 sb.append(indent).append("if (").append(tmp).append(" == null) {\n")
                 sb.append(indent).append("    sb.append(\"null\")\n")
                 sb.append(indent).append("} else {\n")
-                emitValue(sb, tmp, cat.inner, "$indent    ")
+                emitValue(sb, tmp, cat.inner, "$indent    ", allowSecrets)
                 sb.append(indent).append("}\n")
             }
             is TypeCategory.ListOf -> {
@@ -223,9 +249,43 @@ class DeriveJsonProcessor(
                 sb.append(indent).append("sb.append('[')\n")
                 sb.append(indent).append("for ((__i, __e) in ").append(tmp).append(".withIndex()) {\n")
                 sb.append(indent).append("    if (__i > 0) sb.append(',')\n")
-                emitValue(sb, "__e", cat.inner, "$indent    ")
+                emitValue(sb, "__e", cat.inner, "$indent    ", allowSecrets)
                 sb.append(indent).append("}\n")
                 sb.append(indent).append("sb.append(']')\n")
+            }
+            is TypeCategory.MapOf -> {
+                val tmp = freshTmpName()
+                val idx = freshTmpName()
+                val k = freshTmpName()
+                val v = freshTmpName()
+                sb.append(indent).append("val ").append(tmp).append(" = ").append(expr).append("\n")
+                sb.append(indent).append("sb.append('{')\n")
+                sb.append(indent).append("var ").append(idx).append(" = 0\n")
+                // Iterate entries in the underlying map's iteration order. For
+                // LinkedHashMap (mapOf default), that's insertion order — matches
+                // the runtime encoder which also walks `for ((k, v) in value)`.
+                sb.append(indent).append("for ((").append(k).append(", ").append(v).append(") in ").append(tmp).append(") {\n")
+                sb.append(indent).append("    if (").append(idx).append(" > 0) sb.append(',')\n")
+                sb.append(indent).append("    ").append(idx).append("++\n")
+                sb.append(indent).append("    sb.append(").append(ESCAPE_FN).append("(").append(k).append("))\n")
+                sb.append(indent).append("    sb.append(':')\n")
+                emitValue(sb, v, cat.value, "$indent    ", allowSecrets)
+                sb.append(indent).append("}\n")
+                sb.append(indent).append("sb.append('}')\n")
+            }
+            is TypeCategory.SecretOf -> {
+                if (!allowSecrets) {
+                    // Default: never let a Secret leak through generated code.
+                    // Emit the literal redacted string with no recursion into T.
+                    sb.append(indent).append("sb.append(\"\\\"[REDACTED]\\\"\")\n")
+                } else {
+                    // Diagnostic-only opt-in. Delegate to the runtime encoder on
+                    // the exposed value so we don't have to inline T-specific
+                    // logic for every possible inner shape (ByteArray, nested
+                    // @DeriveJson, Map, etc.). This keeps the rare path in
+                    // lockstep with the runtime byte-for-byte.
+                    sb.append(indent).append("sb.append(dev.kpp.derive.Json.encode(").append(expr).append(".expose()))\n")
+                }
             }
             is TypeCategory.Unsupported -> {
                 // Should have been filtered upstream; emit a no-op so codegen still

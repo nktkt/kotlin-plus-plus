@@ -53,7 +53,7 @@ first-class — without forking the compiler.
     └── derive-ksp-demo/      # @DeriveJson KSP codegen demo (parity vs runtime encoder)
 ```
 
-The repo currently has 365 tests, all green across 14 modules.
+The repo currently has 376 tests, all green across 14 modules.
 Line coverage at v0.4.0: **90.21%** (1382 / 1532); will be re-measured at the next release.
 Analyzer dogfood against the repo: **0 violations**.
 
@@ -130,7 +130,7 @@ gradle koverHtmlReport       # aggregated coverage at build/reports/kover/html/
 gradle publishToMavenLocal
 ```
 
-365 tests, 0 failures. The analyzer's dogfood pass over the entire
+376 tests, 0 failures. The analyzer's dogfood pass over the entire
 repo currently reports 0 violations.
 
 ## Status
@@ -150,7 +150,8 @@ repo currently reports 0 violations.
 | Deep immutable collections               | `ImmutableList/Map/Set` + `@Immutable`       | shipped       |
 | `borrow`/`move` ownership keywords       | `@Borrow`/`@Move` annotation placeholders    | partial       |
 | Typed structured concurrency             | `parallelMap`, `raceFirstSuccess`, `sequence`| shipped       |
-| `@derive(Json)` compile-time meta        | runtime stub + KSP processor prototype       | partial       |
+| `@derive(Json)` encoder (compile-time)   | runtime + KSP encoder at full parity         | shipped       |
+| `@derive(Json)` decoder (compile-time)   | runtime only; KSP-generated decoder is Phase-4 follow-up | partial       |
 | Real `T ! E` syntax                      | requires compiler change                     | compiler-only |
 | `[1, 2, 3]` collection literals          | `listOf(1, 2, 3)`                            | compiler-only |
 | Sample wiring it all together            | `samples/payment`                            | shipped       |

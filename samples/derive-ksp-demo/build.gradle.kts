@@ -10,9 +10,11 @@ application {
 
 dependencies {
     implementation(project(":libs:kpp-derive"))
+    implementation(project(":libs:kpp-secret"))
     ksp(project(":libs:kpp-derive-ksp"))
     testImplementation(kotlin("test"))
     testImplementation(project(":libs:kpp-derive"))
+    testImplementation(project(":libs:kpp-secret"))
 }
 
 tasks.test {

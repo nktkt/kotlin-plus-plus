@@ -1,6 +1,7 @@
 package dev.kpp.samples.ksp
 
 import dev.kpp.derive.Json
+import dev.kpp.secret.toSecret
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -126,5 +127,130 @@ class RichModelsParityTest {
         // List<Address> + nullable Address paths above.
         val empty = IntegerList(listOf())
         assertEquals(Json.encode(empty), empty.toJsonGenerated())
+    }
+
+    @Test
+    fun secret_is_redacted_by_default_in_generated_output() {
+        val c = Credentials("alice", "hunter2".toSecret())
+        val runtime = Json.encode(c)
+        val generated = c.toJsonGenerated()
+        assertEquals("""{"username":"alice","password":"[REDACTED]"}""", runtime)
+        assertEquals(runtime, generated)
+        assertFalse(generated.contains("hunter2"), "secret leaked: $generated")
+    }
+
+    @Test
+    fun secret_is_exposed_when_allow_secrets_true() {
+        val c = CredentialsDiagnostic("alice", "hunter2".toSecret())
+        val runtime = Json.encode(c)
+        val generated = c.toJsonGenerated()
+        assertEquals("""{"username":"alice","password":"hunter2"}""", runtime)
+        assertEquals(runtime, generated)
+    }
+
+    @Test
+    fun secret_byte_array_is_redacted() {
+        val k = ApiToken(ByteArray(16) { it.toByte() }.toSecret())
+        val runtime = Json.encode(k)
+        val generated = k.toJsonGenerated()
+        assertEquals("""{"token":"[REDACTED]"}""", runtime)
+        assertEquals(runtime, generated)
+        assertTrue(generated.contains("[REDACTED]"))
+        assertFalse(generated.contains("16"))
+    }
+
+    @Test
+    fun nullable_secret_emits_null_for_null() {
+        val c = OptionalCredentials("alice", null)
+        val runtime = Json.encode(c)
+        val generated = c.toJsonGenerated()
+        assertEquals("""{"username":"alice","password":null}""", runtime)
+        assertEquals(runtime, generated)
+    }
+
+    @Test
+    fun nullable_secret_redacts_when_present() {
+        val c = OptionalCredentials("alice", "p@ss".toSecret())
+        val runtime = Json.encode(c)
+        val generated = c.toJsonGenerated()
+        assertEquals("""{"username":"alice","password":"[REDACTED]"}""", runtime)
+        assertEquals(runtime, generated)
+    }
+
+    @Test
+    fun map_string_to_string_matches_runtime() {
+        val empty = Tags(
+            labels = emptyMap(),
+            counts = emptyMap(),
+            nested = emptyMap(),
+            nullableValues = emptyMap(),
+        )
+        assertEquals(Json.encode(empty), empty.toJsonGenerated())
+
+        val populated = Tags(
+            labels = linkedMapOf("env" to "prod", "tier" to "gold"),
+            counts = emptyMap(),
+            nested = emptyMap(),
+            nullableValues = emptyMap(),
+        )
+        val out = populated.toJsonGenerated()
+        assertEquals(Json.encode(populated), out)
+        assertTrue(out.contains("\"env\":\"prod\""))
+        assertTrue(out.contains("\"tier\":\"gold\""))
+    }
+
+    @Test
+    fun map_string_to_int_matches_runtime() {
+        val t = Tags(
+            labels = emptyMap(),
+            counts = linkedMapOf("a" to 1, "b" to 2, "c" to -7),
+            nested = emptyMap(),
+            nullableValues = emptyMap(),
+        )
+        val out = t.toJsonGenerated()
+        assertEquals(Json.encode(t), out)
+        // Insertion-order parity check.
+        assertTrue(out.indexOf("\"a\":1") < out.indexOf("\"b\":2"))
+    }
+
+    @Test
+    fun map_string_to_nested_class_matches_runtime() {
+        val t = Tags(
+            labels = emptyMap(),
+            counts = emptyMap(),
+            nested = linkedMapOf(
+                "home" to Address("1 First St", "Springfield", "00001"),
+                "work" to Address("2 Second Ave", "Shelbyville", "00002"),
+            ),
+            nullableValues = emptyMap(),
+        )
+        assertEquals(Json.encode(t), t.toJsonGenerated())
+    }
+
+    @Test
+    fun map_with_nullable_values_matches_runtime() {
+        val t = Tags(
+            labels = emptyMap(),
+            counts = emptyMap(),
+            nested = emptyMap(),
+            nullableValues = linkedMapOf("present" to "x", "absent" to null),
+        )
+        val out = t.toJsonGenerated()
+        assertEquals(Json.encode(t), out)
+        assertTrue(out.contains("\"absent\":null"))
+        assertTrue(out.contains("\"present\":\"x\""))
+    }
+
+    @Test
+    fun nullable_map_emits_null_for_null() {
+        val t = OptionalTags(labels = null)
+        assertEquals("""{"labels":null}""", Json.encode(t))
+        assertEquals(Json.encode(t), t.toJsonGenerated())
+    }
+
+    @Test
+    fun nullable_map_present_matches_runtime() {
+        val t = OptionalTags(labels = linkedMapOf("a" to "1", "b" to "2"))
+        assertEquals(Json.encode(t), t.toJsonGenerated())
     }
 }

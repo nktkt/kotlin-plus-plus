@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **KSP backend round 3** — closes the remaining encoder gaps so the
+  generated `toJsonGenerated()` is byte-identical to the runtime
+  `Json.encode` for **every shape the runtime supports**:
+  - **`Map<String, T>`** with any supported value type — primitive,
+    nullable, `List<T>`, nested `@DeriveJson`, `Secret<*>`. Iteration
+    follows the underlying `Map`'s `entries` order (matches runtime).
+    `Map<String, T>?` and `Map<String, T?>` supported. Non-String
+    keys rejected with a clear KSP error.
+  - **`Secret<*>`** field detection by FQN (`dev.kpp.secret.Secret`).
+    Default behavior emits the literal JSON string `"[REDACTED]"`
+    regardless of inner type — same as the runtime encoder. Nullable
+    `Secret<T>?` emits `null` for null.
+  - **`@DeriveJson(allowSecrets = true)`** flag is read at processing
+    time. The diagnostic-only path delegates to runtime
+    `Json.encode(secret.expose())` — keeps byte-parity without
+    inlining T-specific recursion in the codegen.
+  - 11 new parity tests covering empty maps, nullable values,
+    nested-class values, redaction, exposure, and the
+    `Secret<ByteArray>` case.
+  - **Decoder is the only remaining gap** — catalogued in ROADMAP as
+    a separate Phase-4 round (parser state machine + type-driven
+    dispatch is genuinely much harder than the encoder).
 - **KSP backend round 2** — `kpp-derive-ksp` now handles a much
   richer subset of `@DeriveJson` classes:
   - `@JsonName("custom_name")` overrides the default property →

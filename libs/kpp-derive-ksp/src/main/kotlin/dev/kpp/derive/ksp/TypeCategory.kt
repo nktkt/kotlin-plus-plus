@@ -19,9 +19,21 @@ internal sealed class TypeCategory {
     // when the element type is itself a List.
     data class ListOf(val inner: TypeCategory) : TypeCategory()
 
+    // Map<String, T>. Key is fixed to kotlin.String — we reject other key
+    // types at categorize() time. Value inner can be any non-Map category.
+    // Map<Map<...>> is forbidden in this slice for symmetry with List<List<...>>.
+    data class MapOf(val keyFqn: String, val value: TypeCategory) : TypeCategory()
+
     // Reference to another @DeriveJson class. We codegen a call to
     // `<value>.toJsonGenerated()`.
     data class NestedDeriveJson(val fqn: String) : TypeCategory()
+
+    // Secret<T>. Treated as a leaf shape: codegen does not recurse into T at
+    // shape-validation time. The diagnostic-only `allowSecrets = true` path
+    // delegates to runtime `Json.encode(secret.expose())`, so the inner
+    // value's structure is reflectively encoded — keeping byte-parity without
+    // duplicating per-T logic in the generated source.
+    data class SecretOf(val innerFqn: String) : TypeCategory()
 
     // Anything else — ksType pretty-printed for the error message.
     data class Unsupported(val description: String) : TypeCategory()
@@ -41,6 +53,8 @@ internal val SUPPORTED_PRIMITIVE_FQNS: Set<String> = setOf(
 
 private const val DERIVE_JSON_SHORT = "DeriveJson"
 private const val LIST_FQN = "kotlin.collections.List"
+private const val MAP_FQN = "kotlin.collections.Map"
+private const val SECRET_FQN = "dev.kpp.secret.Secret"
 
 // Walk a KSType into a TypeCategory. Returns Unsupported when the shape
 // does not fit one of the supported arms; the caller turns that into a
@@ -77,9 +91,40 @@ internal fun categorize(type: KSType): TypeCategory {
         return TypeCategory.ListOf(innerCat)
     }
 
-    // Map<...> — explicitly out of scope for this slice.
-    if (fqn == "kotlin.collections.Map") {
-        return TypeCategory.Unsupported("Map<...> is not supported in this slice")
+    if (fqn == MAP_FQN) {
+        val keyType = type.arguments.getOrNull(0)?.type?.resolve()
+            ?: return TypeCategory.Unsupported("Map with no key type argument")
+        val valType = type.arguments.getOrNull(1)?.type?.resolve()
+            ?: return TypeCategory.Unsupported("Map with no value type argument")
+        val keyDecl = keyType.declaration as? KSClassDeclaration
+        val keyFqn = keyDecl?.qualifiedName?.asString()
+        // JSON object keys must be strings. Reject any other key shape with a
+        // clear message so users restructure instead of getting a runtime crash
+        // from the reflective encoder.
+        if (keyFqn != "kotlin.String" || keyType.isMarkedNullable) {
+            return TypeCategory.Unsupported(
+                "Map keys must be non-null kotlin.String for JSON, got '${keyType}'"
+            )
+        }
+        val valCat = categorize(valType)
+        // Mirror the List<List<...>> guardrail for nested maps.
+        if (isMapShape(valCat)) {
+            return TypeCategory.Unsupported("Map<String, Map<...>> is not supported in this slice")
+        }
+        if (valCat is TypeCategory.Unsupported) return valCat
+        return TypeCategory.MapOf(keyFqn, valCat)
+    }
+
+    if (fqn == SECRET_FQN) {
+        // Secret<T> is a leaf for shape purposes. The generated emitter either
+        // outputs the literal "[REDACTED]" string or (for allowSecrets = true)
+        // delegates to runtime Json.encode() which reflectively walks T.
+        // We still record the inner FQN for diagnostics / future inlining.
+        val innerType = type.arguments.firstOrNull()?.type?.resolve()
+        val innerFqn = (innerType?.declaration as? KSClassDeclaration)
+            ?.qualifiedName?.asString()
+            ?: "kotlin.Any"
+        return TypeCategory.SecretOf(innerFqn)
     }
 
     // Nested @DeriveJson reference. Look up the annotation by short name to
@@ -89,11 +134,17 @@ internal fun categorize(type: KSType): TypeCategory {
     val isDerive = decl.annotations.any { it.shortName.asString() == DERIVE_JSON_SHORT }
     if (isDerive) return TypeCategory.NestedDeriveJson(fqn)
 
-    return TypeCategory.Unsupported("type '$fqn' is not a supported primitive, List, or @DeriveJson class")
+    return TypeCategory.Unsupported("type '$fqn' is not a supported primitive, List, Map, Secret, or @DeriveJson class")
 }
 
 private fun isListShape(cat: TypeCategory): Boolean = when (cat) {
     is TypeCategory.ListOf -> true
     is TypeCategory.Nullable -> isListShape(cat.inner)
+    else -> false
+}
+
+private fun isMapShape(cat: TypeCategory): Boolean = when (cat) {
+    is TypeCategory.MapOf -> true
+    is TypeCategory.Nullable -> isMapShape(cat.inner)
     else -> false
 }

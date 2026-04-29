@@ -1,6 +1,7 @@
 package dev.kpp.samples.ksp
 
 import dev.kpp.derive.Json
+import dev.kpp.secret.toSecret
 
 fun main() {
     val g = Greeting("hello", "world", 1)
@@ -26,4 +27,21 @@ fun main() {
     )
     println("runtime:    " + Json.encode(u))
     println("generated:  " + u.toJsonGenerated())
+
+    val c = Credentials("alice", "p@ss".toSecret())
+    println("runtime:    " + Json.encode(c))
+    println("generated:  " + c.toJsonGenerated())
+
+    val cd = CredentialsDiagnostic("alice", "p@ss".toSecret())
+    println("runtime:    " + Json.encode(cd))
+    println("generated:  " + cd.toJsonGenerated())
+
+    val t = Tags(
+        labels = mapOf("env" to "prod", "tier" to "gold"),
+        counts = mapOf("a" to 1, "b" to 2),
+        nested = mapOf("home" to Address("1 First St", "Springfield", "00001")),
+        nullableValues = mapOf("present" to "x", "absent" to null),
+    )
+    println("runtime:    " + Json.encode(t))
+    println("generated:  " + t.toJsonGenerated())
 }

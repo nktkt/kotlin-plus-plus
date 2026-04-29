@@ -120,8 +120,19 @@ greppable, source-visible derivation system.
       target `PROPERTY`, not `VALUE_PARAMETER`, so the processor
       joins constructor params to property declarations and reads
       annotations from both sites.
-- [ ] KSP backend remaining gaps: `Map<String, T>`, `Secret<*>`,
-      `@DeriveJson(allowSecrets)`, decoder.
+- [x] KSP backend round 3 — `Map<String, T>` (any supported value
+      type, including nullable values; non-String keys rejected),
+      `Secret<*>` (redacted by default with the literal
+      `"[REDACTED]"`; FQN check on `dev.kpp.secret.Secret`),
+      `@DeriveJson(allowSecrets = true)` (delegates to runtime
+      `Json.encode(secret.expose())` — keeps byte-parity without
+      inlining T-specific logic in the diagnostic-only path).
+      **KSP encoder is now byte-identical to the runtime
+      `Json.encode` for every shape the runtime supports.**
+- [ ] KSP backend decoder — generate `fun Json.decode<T>(text: String): T`
+      bodies for `@DeriveJson` types instead of relying on runtime
+      reflection. Genuinely much harder than the encoder (parser
+      state machine + type-driven dispatch), separate Phase-4 round.
 - [ ] Migrate `@DeriveJson` runtime reflection callers to the KSP
       output once the backend covers the full surface.
 - [ ] `@derive(Json, Equals, Hash, Diff, ...)` shape — multiple
