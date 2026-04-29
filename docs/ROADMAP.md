@@ -103,8 +103,17 @@ greppable, source-visible derivation system.
       `@JsonName`, `@JsonIgnore`, `Json.encode` / `Json.decode`.
       Runtime reflection only, hand-rolled lexer + parser, kept
       identical in surface to what the future codegen will ship
-- [ ] Migrate `@DeriveJson` from runtime reflection to a KSP/FIR
-      compile-time generator with output in build/generated/source
+- [x] Phase-4 KSP prototype: `libs/kpp-derive-ksp` ships a
+      `SymbolProcessor` that emits a `toJsonGenerated()` extension
+      for each `@DeriveJson` class. Output written to
+      `build/generated/ksp/main/kotlin/`. Per-class output is
+      byte-identical to `Json.encode` for the supported subset.
+      Sample: `samples/derive-ksp-demo` proves parity at test time.
+- [ ] Extend the KSP backend beyond the prototype subset: nested
+      classes, `List<T>`, `Map<String, T>`, `Secret<*>`, `@JsonName`,
+      `@JsonIgnore`, `@DeriveJson(allowSecrets)`, decoder.
+- [ ] Migrate `@DeriveJson` runtime reflection callers to the KSP
+      output once the backend covers the full surface.
 - [ ] `@derive(Json, Equals, Hash, Diff, ...)` shape — multiple
       derives per declaration
 - [ ] Generators ship as `KppDerive` plugins; output written next to

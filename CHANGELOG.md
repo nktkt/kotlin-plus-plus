@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **`libs/kpp-derive-ksp`** — new module. The first slice of Phase-4
+  compile-time meta: a KSP `SymbolProcessor` that reads
+  `@DeriveJson`-annotated classes and emits a `toJsonGenerated()`
+  extension with zero reflection. KSP version `2.2.20-2.0.4`.
+  Generated output is byte-identical to the runtime `Json.encode` for
+  the supported subset. The runtime path stays — users opt in to
+  codegen by applying the KSP plugin and the processor.
+  Subset shipped in this prototype:
+  - Property types: `String`, `Int`, `Long`, `Boolean`, `Double`,
+    `Float`, `Short`, `Byte`. Anything else triggers a KSP `error`.
+  - Honours `@DeriveJson(snakeCase = true)` on the class.
+  - Skips `@JsonName`, `@JsonIgnore`, `@DeriveJson(allowSecrets)`,
+    nested classes, `List`/`Map`, `Secret<*>`, and the decoder.
+    Catalogued as Phase-4 follow-up in `docs/ROADMAP.md`.
+  Generated escape rules match the runtime encoder. Single shared
+  helper file is emitted once per processing round (aggregating
+  dependency); per-class files reference it.
+- **`samples/derive-ksp-demo`** — applies the KSP plugin and the
+  processor; `Greeting` and `Request(snakeCase=true)` data classes
+  prove generated/runtime parity at test time. Five parity tests,
+  including escape sequences (`"`, `\`, control chars).
+
+### Added (publishing)
 - All nine library modules now publish to Maven Local. Run
   `gradle publishToMavenLocal` to install
   `dev.kotlinplusplus:{kpp-core,kpp-capability,kpp-analyzer,

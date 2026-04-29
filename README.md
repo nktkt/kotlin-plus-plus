@@ -28,7 +28,7 @@ first-class — without forking the compiler.
 ```
 .
 ├── build.gradle.kts          # root, configures Kotlin 2.2 + -Xcontext-parameters
-├── settings.gradle.kts       # 10 libs + 2 samples
+├── settings.gradle.kts       # 11 libs + 3 samples
 ├── gradle.properties
 ├── docs/
 │   ├── MANIFESTO.md          # design principles
@@ -45,14 +45,16 @@ first-class — without forking the compiler.
 │   ├── kpp-test/             # assertOk/assertErr, recordingCapability, VirtualClock, CaptureLogger
 │   ├── kpp-secret/           # Secret<T> redacting wrapper, timing-safe equals, JSON integration
 │   ├── kpp-validation/       # Validator<I,O,E>, NonEmptyList, accumulating combinators
+│   ├── kpp-derive-ksp/       # @DeriveJson KSP processor (Phase-4 prototype)
 │   └── kpp-gradle-plugin/    # `dev.kotlinplusplus.kpp` Gradle plugin: kppCheck task + DSL
 └── samples/
     ├── payment/              # focused demo: typed errors + caps + analyzer
-    └── http-server/          # flagship demo: every module composing
+    ├── http-server/          # flagship demo: every module composing
+    └── derive-ksp-demo/      # @DeriveJson KSP codegen demo (parity vs runtime encoder)
 ```
 
-The repo currently has 345 tests, all green across 12 modules.
-Line coverage at v0.4.0: **90.21%** (1382 / 1532).
+The repo currently has 356 tests, all green across 14 modules.
+Line coverage at v0.4.0: **90.21%** (1382 / 1532); will be re-measured at the next release.
 Analyzer dogfood against the repo: **0 violations**.
 
 ## Quick start
@@ -128,8 +130,8 @@ gradle koverHtmlReport       # aggregated coverage at build/reports/kover/html/
 gradle publishToMavenLocal
 ```
 
-345 tests, 0 failures, 90.21% line coverage. The analyzer's dogfood
-pass over the entire repo currently reports 0 violations.
+356 tests, 0 failures. The analyzer's dogfood pass over the entire
+repo currently reports 0 violations.
 
 ## Status
 
@@ -148,7 +150,7 @@ pass over the entire repo currently reports 0 violations.
 | Deep immutable collections               | `ImmutableList/Map/Set` + `@Immutable`       | shipped       |
 | `borrow`/`move` ownership keywords       | `@Borrow`/`@Move` annotation placeholders    | partial       |
 | Typed structured concurrency             | `parallelMap`, `raceFirstSuccess`, `sequence`| shipped       |
-| `@derive(Json)` compile-time meta        | runtime reflection stub; KSP/FIR is Phase 4  | partial       |
+| `@derive(Json)` compile-time meta        | runtime stub + KSP processor prototype       | partial       |
 | Real `T ! E` syntax                      | requires compiler change                     | compiler-only |
 | `[1, 2, 3]` collection literals          | `listOf(1, 2, 3)`                            | compiler-only |
 | Sample wiring it all together            | `samples/payment`                            | shipped       |
