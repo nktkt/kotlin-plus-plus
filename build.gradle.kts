@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "2.2.0" apply false
+    kotlin("jvm") version "2.3.21" apply false
     id("org.jetbrains.kotlinx.kover") version "0.9.1"
 }
 
