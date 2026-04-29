@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **KSP backend round 2** — `kpp-derive-ksp` now handles a much
+  richer subset of `@DeriveJson` classes:
+  - `@JsonName("custom_name")` overrides the default property →
+    JSON-name mapping (defeats `snakeCase` for that one property).
+  - `@JsonIgnore` omits a property entirely from generated output;
+    comma handling stays correct around skipped properties.
+  - **Nullable** property types: `String?`, `Int?`, …, nullable
+    nested `@DeriveJson` classes (`User?`), nullable lists
+    (`List<T>?`). Emit literal `null` JSON token for null values.
+  - **`List<T>`** where `T` is a primitive or a nested
+    `@DeriveJson` class. Format: `[a,b,c]`, no spaces, no trailing
+    comma; empty list `[]`. `List<T?>` (nullable elements) supported.
+    `List<List<...>>` and `List<Map<...>>` rejected with a clear
+    KSP error.
+  - **Nested `@DeriveJson` classes** recurse via
+    `nestedProperty.toJsonGenerated()`. A nested type that is NOT
+    `@DeriveJson`-annotated triggers a KSP error.
+  - Type-shape validation refactored into a sealed
+    `TypeCategory(Primitive / Nullable / ListOf / NestedDeriveJson /
+    Unsupported)` so future extensions hook into one place.
+  - 9 new parity tests in `samples/derive-ksp-demo` covering every
+    feature and edge cases (empty list, all-null fields, byte-level
+    parity vs runtime encoder).
+  - KSP gotcha discovered and worked around: `@JsonName`/`@JsonIgnore`
+    target `PROPERTY`, not `VALUE_PARAMETER`, so they're not visible
+    on `KSValueParameter` for primary-constructor data class fields.
+    The processor now joins constructor params to property
+    declarations by name and checks both sites.
 - **`libs/kpp-derive-ksp`** — new module. The first slice of Phase-4
   compile-time meta: a KSP `SymbolProcessor` that reads
   `@DeriveJson`-annotated classes and emits a `toJsonGenerated()`

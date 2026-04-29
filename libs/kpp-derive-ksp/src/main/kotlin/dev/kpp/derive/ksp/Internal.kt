@@ -38,13 +38,6 @@ internal fun escapeJsonString(s: String): String {
 }
 
 // FQNs of supported primitive-ish property types in this prototype slice.
-internal val SUPPORTED_TYPES: Set<String> = setOf(
-    "kotlin.String",
-    "kotlin.Int",
-    "kotlin.Long",
-    "kotlin.Boolean",
-    "kotlin.Double",
-    "kotlin.Float",
-    "kotlin.Short",
-    "kotlin.Byte",
-)
+// Kept as an alias of SUPPORTED_PRIMITIVE_FQNS so older tests still compile;
+// the canonical name lives next to the TypeCategory.
+internal val SUPPORTED_TYPES: Set<String> = SUPPORTED_PRIMITIVE_FQNS

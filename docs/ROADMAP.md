@@ -109,9 +109,19 @@ greppable, source-visible derivation system.
       `build/generated/ksp/main/kotlin/`. Per-class output is
       byte-identical to `Json.encode` for the supported subset.
       Sample: `samples/derive-ksp-demo` proves parity at test time.
-- [ ] Extend the KSP backend beyond the prototype subset: nested
-      classes, `List<T>`, `Map<String, T>`, `Secret<*>`, `@JsonName`,
-      `@JsonIgnore`, `@DeriveJson(allowSecrets)`, decoder.
+- [x] KSP backend round 2: `@JsonName`, `@JsonIgnore`, nullable
+      property types (incl. nullable nested classes and nullable
+      lists), `List<T>` of primitives or nested `@DeriveJson` classes
+      (including `List<T?>` and `List<T>?`), and recursive nested
+      `@DeriveJson` classes. Type validation lives in a sealed
+      `TypeCategory`; unsupported shapes (e.g. `List<List<...>>`,
+      `Map<...>`, raw non-`@DeriveJson` nested types) trigger a clear
+      KSP error. Discovered KSP gotcha: `@JsonName`/`@JsonIgnore`
+      target `PROPERTY`, not `VALUE_PARAMETER`, so the processor
+      joins constructor params to property declarations and reads
+      annotations from both sites.
+- [ ] KSP backend remaining gaps: `Map<String, T>`, `Secret<*>`,
+      `@DeriveJson(allowSecrets)`, decoder.
 - [ ] Migrate `@DeriveJson` runtime reflection callers to the KSP
       output once the backend covers the full surface.
 - [ ] `@derive(Json, Equals, Hash, Diff, ...)` shape — multiple
