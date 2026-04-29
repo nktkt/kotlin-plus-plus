@@ -129,10 +129,25 @@ greppable, source-visible derivation system.
       inlining T-specific logic in the diagnostic-only path).
       **KSP encoder is now byte-identical to the runtime
       `Json.encode` for every shape the runtime supports.**
-- [ ] KSP backend decoder — generate `fun Json.decode<T>(text: String): T`
-      bodies for `@DeriveJson` types instead of relying on runtime
-      reflection. Genuinely much harder than the encoder (parser
-      state machine + type-driven dispatch), separate Phase-4 round.
+- [x] KSP backend round 4 — codegen decoder. For `@DeriveJson`
+      classes that declare `companion object`, the processor emits a
+      `Companion.fromJsonGenerated(text: String): X` extension that
+      delegates JSON parsing to runtime
+      `Json.decode<Map<String, Any?>>(text)` and uses generated
+      type-specific extractors (no reflection in the per-class
+      dispatch). Coverage matches the encoder minus `Secret<*>`:
+      primitives with proper `Long → Int/Short/Byte/Float`
+      coercions, nullable, `List<T>`, `Map<String, T>`, nested
+      `@DeriveJson`. `@JsonName` and `@JsonIgnore` honored;
+      `@JsonIgnore` requires a default value (named-arg constructor
+      invocation lets the default fire). Errors: missing required
+      field, wrong runtime type. Classes without a companion get a
+      KSP **warning** (encoder still generates); classes with
+      `Secret<*>` fields get a KSP **error** for the decoder only
+      (Secret roundtrip stays Phase-4 follow-up).
+- [ ] Phase-4 KSP follow-ups: `Secret<*>` decoder roundtrip, KSP
+      processor unit tests in isolation, performance characterization
+      vs runtime path.
 - [ ] Migrate `@DeriveJson` runtime reflection callers to the KSP
       output once the backend covers the full surface.
 - [ ] `@derive(Json, Equals, Hash, Diff, ...)` shape — multiple

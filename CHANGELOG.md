@@ -8,6 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **KSP backend round 4 — codegen decoder.** For `@DeriveJson` classes
+  with a `companion object`, the processor emits a
+  `Companion.fromJsonGenerated(text: String): X` extension. The
+  generated code:
+  - Delegates JSON parsing to runtime
+    `Json.decode<Map<String, Any?>>(text)` — reuses the existing
+    parser, only generates the type-specific extraction.
+  - Walks each constructor parameter with the right `Long → Int/
+    Short/Byte/Float` coercions matching the runtime decoder.
+  - Honors `@JsonName` overrides and the class-level `snakeCase`
+    flag for default key resolution.
+  - Honors `@JsonIgnore` — requires the property to have a default
+    value, then uses named-argument constructor invocation so the
+    default fires.
+  - Throws `IllegalArgumentException` with the offending field name
+    on missing-required and wrong-type cases.
+  - Coverage: primitives, nullable, `List<T>`, `Map<String, T>`,
+    nested `@DeriveJson`. **Same subset as the encoder minus
+    `Secret<*>`** (Secret round-trip is genuinely harder; stays a
+    Phase-4 follow-up).
+  - KSP warning when class lacks a companion (encoder still emits).
+  - KSP error when a class has `Secret<*>` field (decoder skipped;
+    encoder still emits) or when a `@JsonIgnore` property has no
+    default (cannot reconstruct).
+  - 13 new round-trip parity tests in `samples/derive-ksp-demo`
+    covering simple, snake-case, JsonName, JsonIgnore, nullable,
+    nested, list, map, and the missing-required / wrong-type
+    error paths.
+- **`samples/derive-ksp-demo` Main.kt** now prints six round-trip
+  lines (`true` for each), confirming the codegen decoder is the
+  inverse of the runtime encoder for every supported shape.
 - **KSP backend round 3** — closes the remaining encoder gaps so the
   generated `toJsonGenerated()` is byte-identical to the runtime
   `Json.encode` for **every shape the runtime supports**:

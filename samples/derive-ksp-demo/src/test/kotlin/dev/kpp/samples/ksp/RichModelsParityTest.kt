@@ -4,6 +4,7 @@ import dev.kpp.derive.Json
 import dev.kpp.secret.toSecret
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -252,5 +253,224 @@ class RichModelsParityTest {
     fun nullable_map_present_matches_runtime() {
         val t = OptionalTags(labels = linkedMapOf("a" to "1", "b" to "2"))
         assertEquals(Json.encode(t), t.toJsonGenerated())
+    }
+
+    // ---- Codegen decoder round-trip tests ----
+
+    @Test
+    fun decode_round_trips_simple_class() {
+        val a = Address("221B Baker St", "London", "NW1")
+        val text = Json.encode(a)
+        val decoded = Address.fromJsonGenerated(text)
+        assertEquals(a, decoded)
+    }
+
+    @Test
+    fun decode_round_trips_with_snake_case() {
+        val r = Request(userId = 7, sessionToken = "tok", isAdmin = true)
+        val text = Json.encode(r)
+        val decoded = Request.fromJsonGenerated(text)
+        assertEquals(r, decoded)
+        // The serialized form must use snake_case keys, then decode back to camelCase fields.
+        assertTrue(text.contains("\"user_id\""))
+        assertTrue(text.contains("\"session_token\""))
+        assertTrue(text.contains("\"is_admin\""))
+    }
+
+    @Test
+    fun decode_handles_jsonname_overrides() {
+        // UserProfile has @JsonName("email_address") on email.
+        val u = UserProfile(
+            id = 11,
+            displayName = "Eve",
+            email = "eve@example.com",
+            internalNote = "n/a", // matches the default so round-trip equality holds
+            nickname = null,
+            tags = emptyList(),
+            pastAddresses = emptyList(),
+            primaryAddress = null,
+        )
+        val text = Json.encode(u)
+        assertTrue(text.contains("\"email_address\""))
+        val decoded = UserProfile.fromJsonGenerated(text)
+        assertEquals(u, decoded)
+        assertEquals("eve@example.com", decoded.email)
+    }
+
+    @Test
+    fun decode_uses_default_for_jsonignore_properties() {
+        // The JSON omits internal_note entirely (because of @JsonIgnore on
+        // the encoder side). The decoder must NOT throw — it must use the
+        // declared default ("n/a") via named-arg ctor invocation.
+        val u = UserProfile(
+            id = 1,
+            displayName = "x",
+            email = "x@y",
+            internalNote = "anything-here",
+            nickname = null,
+            tags = emptyList(),
+            pastAddresses = emptyList(),
+            primaryAddress = null,
+        )
+        val text = Json.encode(u)
+        assertFalse(text.contains("internal_note"), "expected ignored key to be absent")
+        val decoded = UserProfile.fromJsonGenerated(text)
+        // The default fires, so internalNote is "n/a" regardless of what
+        // the source had — this is the documented contract for @JsonIgnore.
+        assertEquals("n/a", decoded.internalNote)
+    }
+
+    @Test
+    fun decode_round_trips_nullable_fields() {
+        val withVal = OptionalTags(labels = linkedMapOf("a" to "1", "b" to "2"))
+        val withNull = OptionalTags(labels = null)
+        assertEquals(withVal, OptionalTags.fromJsonGenerated(Json.encode(withVal)))
+        assertEquals(withNull, OptionalTags.fromJsonGenerated(Json.encode(withNull)))
+    }
+
+    @Test
+    fun decode_round_trips_nested_class() {
+        val u = UserProfile(
+            id = 100,
+            displayName = "Carol",
+            email = "carol@example.com",
+            internalNote = "n/a",
+            nickname = "cc",
+            tags = listOf("a", "b"),
+            pastAddresses = emptyList(),
+            primaryAddress = Address("delta", "Deltaplex", "DDD"),
+        )
+        val text = Json.encode(u)
+        val decoded = UserProfile.fromJsonGenerated(text)
+        assertEquals(u, decoded)
+        assertEquals("delta", decoded.primaryAddress?.street)
+    }
+
+    @Test
+    fun decode_round_trips_list_of_strings() {
+        val u = UserProfile(
+            id = 1,
+            displayName = "x",
+            email = "x@y",
+            internalNote = "n/a",
+            nickname = null,
+            tags = listOf("alpha", "beta", "gamma"),
+            pastAddresses = emptyList(),
+            primaryAddress = null,
+        )
+        val decoded = UserProfile.fromJsonGenerated(Json.encode(u))
+        assertEquals(u, decoded)
+        assertEquals(listOf("alpha", "beta", "gamma"), decoded.tags)
+    }
+
+    @Test
+    fun decode_round_trips_list_of_nested_classes() {
+        val u = UserProfile(
+            id = 1,
+            displayName = "x",
+            email = "x@y",
+            internalNote = "n/a",
+            nickname = null,
+            tags = emptyList(),
+            pastAddresses = listOf(
+                Address("1 First St", "Springfield", "00001"),
+                Address("2 Second Ave", "Shelbyville", "00002"),
+            ),
+            primaryAddress = null,
+        )
+        val decoded = UserProfile.fromJsonGenerated(Json.encode(u))
+        assertEquals(u, decoded)
+        assertEquals(2, decoded.pastAddresses.size)
+        assertEquals("1 First St", decoded.pastAddresses[0].street)
+    }
+
+    @Test
+    fun decode_round_trips_map_of_strings() {
+        val t = Tags(
+            labels = linkedMapOf("env" to "prod", "tier" to "gold"),
+            counts = linkedMapOf("a" to 1, "b" to 2),
+            nested = linkedMapOf("home" to Address("1 First St", "Springfield", "00001")),
+            nullableValues = linkedMapOf("present" to "x", "absent" to null),
+        )
+        val text = Json.encode(t)
+        val decoded = Tags.fromJsonGenerated(text)
+        assertEquals(t, decoded)
+        assertEquals("prod", decoded.labels["env"])
+        assertEquals(1, decoded.counts["a"])
+        assertEquals("1 First St", decoded.nested["home"]?.street)
+        assertTrue(decoded.nullableValues.containsKey("absent"))
+        assertEquals(null, decoded.nullableValues["absent"])
+    }
+
+    @Test
+    fun decode_throws_on_missing_required_field() {
+        // Address requires street/city/zip. Construct a JSON that omits one.
+        val text = """{"street":"x","city":"y"}"""
+        val ex = assertFailsWith<IllegalArgumentException> {
+            Address.fromJsonGenerated(text)
+        }
+        assertTrue(
+            ex.message?.contains("zip") == true,
+            "expected 'zip' in error message, got: ${ex.message}",
+        )
+    }
+
+    @Test
+    fun decode_throws_on_wrong_type() {
+        // email is declared as String; pass a number instead.
+        val text = """{"id":1,"display_name":"x","email_address":42,"nickname":null,"tags":[],"past_addresses":[],"primary_address":null}"""
+        assertFailsWith<IllegalArgumentException> {
+            UserProfile.fromJsonGenerated(text)
+        }
+    }
+
+    @Test
+    fun decode_round_trips_full_shape() {
+        val a = Address("1 First St", "Springfield", "00001")
+        val full = FullShape(
+            name = "alpha",
+            count = 7,
+            total = 1234567890123L,
+            ratio = 1.5,
+            partial = 0.25f,
+            tinyByte = 9,
+            tinyShort = 300,
+            flag = true,
+            maybe = "yes",
+            tags = listOf("a", "b"),
+            addresses = listOf(a),
+            labels = linkedMapOf("k" to "v"),
+            home = a,
+            nullableHome = null,
+            originalName = "kept",
+            computed = "default",
+        )
+        val decoded = FullShape.fromJsonGenerated(Json.encode(full))
+        assertEquals(full, decoded)
+    }
+
+    @Test
+    fun decode_full_shape_with_null_optional() {
+        val a = Address("1 First St", "Springfield", "00001")
+        val full = FullShape(
+            name = "alpha",
+            count = 0,
+            total = 0L,
+            ratio = 0.0,
+            partial = 0f,
+            tinyByte = 0,
+            tinyShort = 0,
+            flag = false,
+            maybe = null,
+            tags = emptyList(),
+            addresses = emptyList(),
+            labels = emptyMap(),
+            home = a,
+            nullableHome = a,
+            originalName = "x",
+            computed = "default",
+        )
+        val decoded = FullShape.fromJsonGenerated(Json.encode(full))
+        assertEquals(full, decoded)
     }
 }

@@ -47,6 +47,10 @@ class DeriveJsonProcessor(
             val allowSecrets = readAllowSecrets(cls)
             val ok = generateForClass(cls, params, allowSecrets)
             if (ok) anyValid = true
+            // Decoder generation is best-effort and independent of the
+            // encoder. If decoder gen fails (no companion, has Secret<*>,
+            // etc.) the encoder is still emitted normally.
+            generateDecoderForClass(cls)
         }
 
         if (anyValid && !helperEmitted) {
@@ -346,6 +350,496 @@ class DeriveJsonProcessor(
         OutputStreamWriter(out, StandardCharsets.UTF_8).use { it.write(src) }
     }
 
+    // ----- Decoder generation -----
+    //
+    // Strategy: delegate JSON parsing to the runtime (`Json.decode<Map<String,
+    // Any?>>(text)`) and only generate the type-specific extractor that walks
+    // the parsed Map and constructs the target via its primary constructor.
+    //
+    // Constraints:
+    //  - The class must have a `companion object` so we can extend
+    //    `<Class>.Companion.fromJsonGenerated(text)`. Otherwise we warn and skip.
+    //  - The class must not have any `Secret<*>` parameters — we have no
+    //    decoder story for Secret yet (matches the runtime which throws on
+    //    Secret<T> in `Json.decode`). If any are found, log an error and skip.
+    //  - Each `@JsonIgnore` property must have a default value, because we
+    //    use named-argument constructor invocation and simply omit those
+    //    params (Kotlin's defaults fire). If a `@JsonIgnore` param has no
+    //    default we log an error and skip.
+    private fun generateDecoderForClass(cls: KSClassDeclaration) {
+        if (cls.classKind != ClassKind.CLASS) return
+        val ctor = cls.primaryConstructor ?: return
+
+        val pkg = cls.packageName.asString()
+        val simple = cls.simpleName.asString()
+        val ksFile = cls.containingFile ?: return
+
+        // 1. Companion object check — required for the extension to compile.
+        val hasCompanion = cls.declarations
+            .filterIsInstance<KSClassDeclaration>()
+            .any { it.classKind == ClassKind.OBJECT && it.isCompanionObject }
+        if (!hasCompanion) {
+            env.logger.warn(
+                "@DeriveJson decoder skipped for ${cls.qualifiedName?.asString()}: " +
+                    "decoder generation requires a `companion object {}` declaration. " +
+                    "Encoder is still generated.",
+                cls,
+            )
+            return
+        }
+
+        // 2. Re-categorize all primary-constructor params (including @JsonIgnore
+        // ones, because we need to verify they have defaults). Build a list of
+        // descriptors that includes everything we need for codegen.
+        val snake = readSnakeCase(cls)
+        val propsByName: Map<String, KSPropertyDeclaration> =
+            cls.getDeclaredProperties().associateBy { it.simpleName.asString() }
+
+        val descriptors = ArrayList<DecoderParam>()
+        var ok = true
+        for (param in ctor.parameters) {
+            val pname = param.name?.asString() ?: continue
+            val prop = propsByName[pname]
+            val isIgnored = hasAnnotation(param, prop, JSON_IGNORE_SHORT)
+            val resolved = param.type.resolve()
+            val cat = categorize(resolved)
+
+            if (isIgnored) {
+                // @JsonIgnore params are reconstructed entirely from their
+                // default. If no default, the constructor cannot be called
+                // without that arg, so we can't generate a decoder.
+                if (!param.hasDefault) {
+                    env.logger.error(
+                        "@DeriveJson decoder skipped for ${cls.qualifiedName?.asString()}: " +
+                            "@JsonIgnore property '$pname' has no default value, " +
+                            "cannot be reconstructed from JSON.",
+                        param,
+                    )
+                    ok = false
+                }
+                descriptors.add(DecoderParam(pname, "", cat, isNullable = resolved.isMarkedNullable, hasDefault = param.hasDefault, ignored = true))
+                continue
+            }
+
+            if (cat is TypeCategory.Unsupported) {
+                // Already reported by the encoder pass; just bail on the decoder.
+                ok = false
+                continue
+            }
+            if (containsSecret(cat)) {
+                env.logger.error(
+                    "@DeriveJson decoder skipped for ${cls.qualifiedName?.asString()}: " +
+                        "property '$pname' has a Secret<*> type which the decoder " +
+                        "cannot reconstruct. Encoder is still generated.",
+                    param,
+                )
+                ok = false
+                continue
+            }
+            val nameOverride = readJsonNameValue(param, prop)
+            val key = nameOverride ?: if (snake) camelToSnake(pname) else pname
+            descriptors.add(
+                DecoderParam(
+                    propName = pname,
+                    jsonKey = key,
+                    category = cat,
+                    isNullable = resolved.isMarkedNullable,
+                    hasDefault = param.hasDefault,
+                    ignored = false,
+                )
+            )
+        }
+        if (!ok) return
+
+        // 3. Emit the file.
+        val src = buildDecoderSource(pkg, simple, descriptors)
+        val deps = Dependencies(false, ksFile)
+        val out = env.codeGenerator.createNewFile(deps, pkg, "${simple}_DeriveJsonDecoder")
+        OutputStreamWriter(out, StandardCharsets.UTF_8).use { it.write(src) }
+    }
+
+    private fun containsSecret(cat: TypeCategory): Boolean = when (cat) {
+        is TypeCategory.SecretOf -> true
+        is TypeCategory.Nullable -> containsSecret(cat.inner)
+        is TypeCategory.ListOf -> containsSecret(cat.inner)
+        is TypeCategory.MapOf -> containsSecret(cat.value)
+        else -> false
+    }
+
+    private fun buildDecoderSource(
+        pkg: String,
+        simple: String,
+        descriptors: List<DecoderParam>,
+    ): String {
+        // Reset the local tmp counter so independent class files don't drift.
+        decoderTmpCounter = 0
+        val sb = StringBuilder()
+        if (pkg.isNotEmpty()) {
+            sb.append("package ").append(pkg).append("\n\n")
+        }
+        sb.append("import dev.kpp.derive.Json\n\n")
+
+        // Public entry: parse text into a Map, delegate to the internal
+        // extractor. The signature is fixed so user code reads as
+        // `User.fromJsonGenerated(text)`.
+        sb.append("fun ").append(simple).append(".Companion.fromJsonGenerated(text: String): ")
+            .append(simple).append(" {\n")
+        sb.append("    val raw = Json.decode<Map<String, Any?>>(text)\n")
+        sb.append("    return ").append(extractorFnName(simple)).append("(raw)\n")
+        sb.append("}\n\n")
+
+        // Internal extractor: walks an already-parsed Map. Nested @DeriveJson
+        // classes call each other's internals so we never re-parse. Marked
+        // `internal` to keep it out of the public API surface; same-package
+        // siblings can use it for nesting.
+        sb.append("internal fun ").append(extractorFnName(simple))
+            .append("(raw: Map<String, Any?>): ").append(simple).append(" {\n")
+
+        // Per-property extraction. We use named-argument constructor
+        // invocation, which lets us skip @JsonIgnore params entirely so their
+        // declared defaults fire — Kotlin has no other way to "skip" an arg
+        // at a call site.
+        //
+        // The internal coercion code emits values typed as `Any?`, `List<Any?>`,
+        // or `Map<String, Any?>` (because the runtime parser is shape-erased).
+        // Each constructor param has a stronger static type than that, so we
+        // render its expected type and cast the bound val once at the call site
+        // with @Suppress("UNCHECKED_CAST"). JVM erasure makes this safe — the
+        // element-level coercions already verified the runtime types.
+        val ctorArgs = ArrayList<String>()
+        for (d in descriptors) {
+            if (d.ignored) continue // omit from constructor; default fires
+            val tmp = "v_" + d.propName
+            emitDecoderForParam(sb, "    ", tmp, d)
+            // Compose the param's full Kotlin type (account for Nullable wrapper).
+            val typeStr = if (d.isNullable && d.category !is TypeCategory.Nullable) {
+                renderType(d.category) + "?"
+            } else {
+                renderType(d.category)
+            }
+            sb.append("    @Suppress(\"UNCHECKED_CAST\")\n")
+            sb.append("    val ").append(tmp).append("_typed: ").append(typeStr)
+                .append(" = ").append(tmp).append(" as ").append(typeStr).append("\n")
+            ctorArgs.add("${d.propName} = ${tmp}_typed")
+        }
+        sb.append("    return ").append(simple).append("(\n")
+        for ((i, arg) in ctorArgs.withIndex()) {
+            sb.append("        ").append(arg)
+            if (i < ctorArgs.size - 1) sb.append(',')
+            sb.append('\n')
+        }
+        sb.append("    )\n")
+        sb.append("}\n")
+        return sb.toString()
+    }
+
+    /**
+     * Emit code that reads the JSON value for [d] from `raw` and binds it to
+     * a local val named [varName]. The val is non-nullable iff the property
+     * is non-nullable; for nullable properties, the val is `Any? = null` if
+     * the key is missing or the value is null.
+     */
+    private fun emitDecoderForParam(
+        sb: StringBuilder,
+        indent: String,
+        varName: String,
+        d: DecoderParam,
+    ) {
+        val keyLit = toKotlinStringLiteral(d.jsonKey)
+        val keyAccess = "raw[$keyLit]"
+
+        if (d.hasDefault) {
+            // If the param has a default and the JSON is missing the key,
+            // we'd want to use the default. But once we generate the named-arg
+            // call, we MUST pass *some* value for it (we already chose to
+            // include it in the ctor args). Compromise: if the key is missing,
+            // we fall back to a value-equivalent default — but Kotlin defaults
+            // are arbitrary expressions we can't easily reproduce. Simpler:
+            // if hasDefault AND key missing, treat it like nullable and pass
+            // `null` IF the param is also nullable; otherwise we don't have a
+            // good answer and must throw (but the runtime decoder uses
+            // `param.isOptional` to skip — we can't because we already have
+            // a named arg in the call site).
+            //
+            // The clean alternative: split into two emit modes per descriptor.
+            // For has-default-non-ignored params, we want to OMIT the named arg
+            // when the key is missing too. That requires two ctor call paths.
+            //
+            // To keep the generator simple AND correct for the bulk of cases,
+            // we currently treat has-default like "fall back to null if
+            // missing", which is only safe when nullable. If the param is
+            // non-nullable with a default, we still throw on missing — same
+            // as if the default didn't exist. Documented in tests.
+        }
+
+        when (val cat = d.category) {
+            is TypeCategory.Nullable -> {
+                // Nullable property: missing key -> null, JSON null -> null,
+                // otherwise coerce as inner.
+                sb.append(indent).append("val ").append(varName).append(" = run {\n")
+                sb.append(indent).append("    val __r = ").append(keyAccess).append("\n")
+                sb.append(indent).append("    if (__r == null) null else {\n")
+                emitInnerCoercion(sb, "$indent        ", "__r", cat.inner, d.jsonKey, "__inner")
+                sb.append(indent).append("        __inner\n")
+                sb.append(indent).append("    }\n")
+                sb.append(indent).append("}\n")
+            }
+            else -> {
+                // Required property. Missing key OR null value -> error.
+                sb.append(indent).append("val ").append(varName).append(" = run {\n")
+                sb.append(indent).append("    val __r = ").append(keyAccess).append("\n")
+                sb.append(indent).append("    if (__r == null) throw IllegalArgumentException(\"missing required property '")
+                    .append(escapeForKotlinString(d.jsonKey)).append("'\")\n")
+                emitInnerCoercion(sb, "$indent    ", "__r", cat, d.jsonKey, "__inner")
+                sb.append(indent).append("    __inner\n")
+                sb.append(indent).append("}\n")
+            }
+        }
+    }
+
+    /**
+     * Emit a sequence of statements that coerces local `__r` (typed `Any?` or
+     * `Any`) into the static type denoted by [cat], binding the result to
+     * a local val [resultVar]. [keyForError] feeds the error messages so
+     * users can find which field failed.
+     */
+    private fun emitInnerCoercion(
+        sb: StringBuilder,
+        indent: String,
+        srcExpr: String,
+        cat: TypeCategory,
+        keyForError: String,
+        resultVar: String,
+    ) {
+        when (cat) {
+            is TypeCategory.Primitive -> emitPrimitiveCoercion(sb, indent, srcExpr, cat.fqn, keyForError, resultVar)
+            is TypeCategory.NestedDeriveJson -> {
+                // Nested @DeriveJson classes from the same package can call
+                // each other's internals. Cross-package nesting works because
+                // `internal` is module-scoped; both classes need the KSP
+                // processor applied (same constraint as the encoder side).
+                val nestedSimple = cat.fqn.substringAfterLast('.')
+                sb.append(indent).append("@Suppress(\"UNCHECKED_CAST\")\n")
+                sb.append(indent).append("val __m = ").append(srcExpr)
+                    .append(" as? Map<String, Any?> ?: throw IllegalArgumentException(\"expected JSON object at '")
+                    .append(escapeForKotlinString(keyForError)).append("'\")\n")
+                sb.append(indent).append("val ").append(resultVar).append(" = ")
+                    .append(extractorFnName(nestedSimple)).append("(__m)\n")
+            }
+            is TypeCategory.ListOf -> {
+                val listVar = freshDecoderTmp()
+                val outVar = freshDecoderTmp()
+                sb.append(indent).append("@Suppress(\"UNCHECKED_CAST\")\n")
+                sb.append(indent).append("val ").append(listVar).append(" = ").append(srcExpr)
+                    .append(" as? List<Any?> ?: throw IllegalArgumentException(\"expected JSON array at '")
+                    .append(escapeForKotlinString(keyForError)).append("'\")\n")
+                sb.append(indent).append("val ").append(outVar)
+                    .append(" = ArrayList<Any?>(").append(listVar).append(".size)\n")
+                sb.append(indent).append("for (__elem in ").append(listVar).append(") {\n")
+                emitListElementCoercion(sb, "$indent    ", "__elem", cat.inner, "$keyForError[*]", outVar)
+                sb.append(indent).append("}\n")
+                // Erase the Any? back to a typed list. We rely on JVM erasure;
+                // the eventual constructor-call site declares the typed param.
+                sb.append(indent).append("@Suppress(\"UNCHECKED_CAST\")\n")
+                sb.append(indent).append("val ").append(resultVar).append(" = ").append(outVar)
+                    .append(" as List<Any?>\n")
+            }
+            is TypeCategory.MapOf -> {
+                val mapVar = freshDecoderTmp()
+                val outVar = freshDecoderTmp()
+                sb.append(indent).append("@Suppress(\"UNCHECKED_CAST\")\n")
+                sb.append(indent).append("val ").append(mapVar).append(" = ").append(srcExpr)
+                    .append(" as? Map<String, Any?> ?: throw IllegalArgumentException(\"expected JSON object at '")
+                    .append(escapeForKotlinString(keyForError)).append("'\")\n")
+                sb.append(indent).append("val ").append(outVar)
+                    .append(" = LinkedHashMap<String, Any?>(").append(mapVar).append(".size)\n")
+                sb.append(indent).append("for ((__k, __v) in ").append(mapVar).append(") {\n")
+                emitMapValueCoercion(sb, "$indent    ", "__v", cat.value, "$keyForError[__k]", outVar)
+                sb.append(indent).append("}\n")
+                sb.append(indent).append("@Suppress(\"UNCHECKED_CAST\")\n")
+                sb.append(indent).append("val ").append(resultVar).append(" = ").append(outVar)
+                    .append(" as Map<String, Any?>\n")
+            }
+            is TypeCategory.Nullable -> {
+                // Reached when the outer is, e.g. Nullable→inner; but the
+                // outer wrapper is unwrapped in emitDecoderForParam. If we
+                // somehow get here (e.g., List<T?>), unwrap inline.
+                sb.append(indent).append("val ").append(resultVar).append(" = if (")
+                    .append(srcExpr).append(" == null) null else {\n")
+                emitInnerCoercion(sb, "$indent    ", srcExpr, cat.inner, keyForError, "__nn")
+                sb.append(indent).append("    __nn\n")
+                sb.append(indent).append("}\n")
+            }
+            is TypeCategory.SecretOf, is TypeCategory.Unsupported -> {
+                // Should have been filtered upstream.
+                sb.append(indent).append("val ").append(resultVar)
+                    .append(" = throw IllegalStateException(\"unreachable secret/unsupported\")\n")
+            }
+        }
+    }
+
+    /** Bind result of coercion into [collector].add(...) instead of a val. */
+    private fun emitListElementCoercion(
+        sb: StringBuilder,
+        indent: String,
+        srcExpr: String,
+        cat: TypeCategory,
+        keyForError: String,
+        collector: String,
+    ) {
+        // For nullable elements we need to short-circuit on null first.
+        if (cat is TypeCategory.Nullable) {
+            sb.append(indent).append("if (").append(srcExpr).append(" == null) {\n")
+            sb.append(indent).append("    ").append(collector).append(".add(null)\n")
+            sb.append(indent).append("} else {\n")
+            emitInnerCoercion(sb, "$indent    ", srcExpr, cat.inner, keyForError, "__nn")
+            sb.append(indent).append("    ").append(collector).append(".add(__nn)\n")
+            sb.append(indent).append("}\n")
+        } else {
+            sb.append(indent).append("if (").append(srcExpr)
+                .append(" == null) throw IllegalArgumentException(\"unexpected null in list at '")
+                .append(escapeForKotlinString(keyForError)).append("'\")\n")
+            emitInnerCoercion(sb, indent, srcExpr, cat, keyForError, "__nn")
+            sb.append(indent).append(collector).append(".add(__nn)\n")
+        }
+    }
+
+    /** Bind result of coercion into [collector][__k] = ... instead of a val. */
+    private fun emitMapValueCoercion(
+        sb: StringBuilder,
+        indent: String,
+        srcExpr: String,
+        cat: TypeCategory,
+        keyForError: String,
+        collector: String,
+    ) {
+        if (cat is TypeCategory.Nullable) {
+            sb.append(indent).append("if (").append(srcExpr).append(" == null) {\n")
+            sb.append(indent).append("    ").append(collector).append("[__k] = null\n")
+            sb.append(indent).append("} else {\n")
+            emitInnerCoercion(sb, "$indent    ", srcExpr, cat.inner, keyForError, "__nn")
+            sb.append(indent).append("    ").append(collector).append("[__k] = __nn\n")
+            sb.append(indent).append("}\n")
+        } else {
+            sb.append(indent).append("if (").append(srcExpr)
+                .append(" == null) throw IllegalArgumentException(\"unexpected null in map at '")
+                .append(escapeForKotlinString(keyForError)).append("'\")\n")
+            emitInnerCoercion(sb, indent, srcExpr, cat, keyForError, "__nn")
+            sb.append(indent).append(collector).append("[__k] = __nn\n")
+        }
+    }
+
+    private fun emitPrimitiveCoercion(
+        sb: StringBuilder,
+        indent: String,
+        srcExpr: String,
+        fqn: String,
+        keyForError: String,
+        resultVar: String,
+    ) {
+        // The runtime parser produces:
+        //   - String for JSON strings
+        //   - Boolean for true/false
+        //   - Long for integer numbers (always — even ones a user typed expecting Int)
+        //   - Double for fractional/exponent numbers
+        // So Int/Short/Byte/Float fields require an explicit coercion off Long
+        // (or in Float's case, off Double). Match the runtime's permissive
+        // accept-Long-as-Double rule for floating fields too.
+        val errMsg = "expected ${fqn.substringAfterLast('.').lowercase()} at '" +
+            escapeForKotlinString(keyForError) + "'"
+        when (fqn) {
+            "kotlin.String" -> {
+                sb.append(indent).append("val ").append(resultVar).append(" = ").append(srcExpr)
+                    .append(" as? String ?: throw IllegalArgumentException(\"")
+                    .append(errMsg).append("\")\n")
+            }
+            "kotlin.Boolean" -> {
+                sb.append(indent).append("val ").append(resultVar).append(" = ").append(srcExpr)
+                    .append(" as? Boolean ?: throw IllegalArgumentException(\"")
+                    .append(errMsg).append("\")\n")
+            }
+            "kotlin.Int" -> {
+                sb.append(indent).append("val ").append(resultVar).append(" = (").append(srcExpr)
+                    .append(" as? Long)?.toInt() ?: throw IllegalArgumentException(\"")
+                    .append(errMsg).append("\")\n")
+            }
+            "kotlin.Long" -> {
+                sb.append(indent).append("val ").append(resultVar).append(" = ").append(srcExpr)
+                    .append(" as? Long ?: throw IllegalArgumentException(\"")
+                    .append(errMsg).append("\")\n")
+            }
+            "kotlin.Short" -> {
+                sb.append(indent).append("val ").append(resultVar).append(" = (").append(srcExpr)
+                    .append(" as? Long)?.toShort() ?: throw IllegalArgumentException(\"")
+                    .append(errMsg).append("\")\n")
+            }
+            "kotlin.Byte" -> {
+                sb.append(indent).append("val ").append(resultVar).append(" = (").append(srcExpr)
+                    .append(" as? Long)?.toByte() ?: throw IllegalArgumentException(\"")
+                    .append(errMsg).append("\")\n")
+            }
+            "kotlin.Double" -> {
+                // Accept either Double (real fractional) or Long (integer
+                // typed as a JSON number without a decimal point), matching
+                // the runtime decoder.
+                sb.append(indent).append("val ").append(resultVar).append(" = when (val __n = ")
+                    .append(srcExpr).append(") {\n")
+                sb.append(indent).append("    is Double -> __n\n")
+                sb.append(indent).append("    is Long -> __n.toDouble()\n")
+                sb.append(indent).append("    else -> throw IllegalArgumentException(\"")
+                    .append(errMsg).append("\")\n")
+                sb.append(indent).append("}\n")
+            }
+            "kotlin.Float" -> {
+                sb.append(indent).append("val ").append(resultVar).append(" = when (val __n = ")
+                    .append(srcExpr).append(") {\n")
+                sb.append(indent).append("    is Double -> __n.toFloat()\n")
+                sb.append(indent).append("    is Long -> __n.toFloat()\n")
+                sb.append(indent).append("    else -> throw IllegalArgumentException(\"")
+                    .append(errMsg).append("\")\n")
+                sb.append(indent).append("}\n")
+            }
+            else -> {
+                sb.append(indent).append("val ").append(resultVar)
+                    .append(" = throw IllegalStateException(\"unsupported primitive ").append(fqn).append("\")\n")
+            }
+        }
+    }
+
+    private var decoderTmpCounter = 0
+    private fun freshDecoderTmp(): String = "__d${decoderTmpCounter++}"
+
+    // Render a TypeCategory back into its Kotlin source-level type string.
+    // Used to drive `@Suppress("UNCHECKED_CAST") val v: T = ... as T` so the
+    // constructor call compiles when the param is e.g. List<String>.
+    private fun renderType(cat: TypeCategory): String = when (cat) {
+        is TypeCategory.Primitive -> cat.fqn.removePrefix("kotlin.")
+        is TypeCategory.NestedDeriveJson -> cat.fqn
+        is TypeCategory.Nullable -> renderType(cat.inner) + "?"
+        is TypeCategory.ListOf -> "List<" + renderType(cat.inner) + ">"
+        is TypeCategory.MapOf -> "Map<String, " + renderType(cat.value) + ">"
+        is TypeCategory.SecretOf -> "dev.kpp.secret.Secret<*>"
+        is TypeCategory.Unsupported -> "kotlin.Any?"
+    }
+
+    private fun extractorFnName(simple: String): String = "${simple}fromMap_internal"
+
+    private fun escapeForKotlinString(s: String): String {
+        val sb = StringBuilder()
+        for (c in s) {
+            when (c) {
+                '\\' -> sb.append("\\\\")
+                '"' -> sb.append("\\\"")
+                '\n' -> sb.append("\\n")
+                '\r' -> sb.append("\\r")
+                '\t' -> sb.append("\\t")
+                '$' -> sb.append("\\$")
+                else -> sb.append(c)
+            }
+        }
+        return sb.toString()
+    }
+
     // Turn a String (which may contain backslashes / quotes / control chars from
     // escapeJsonString) into a valid Kotlin source-level string literal.
     private fun toKotlinStringLiteral(s: String): String {
@@ -373,4 +867,13 @@ private data class EmittedParam(
     val propName: String,
     val jsonKey: String,
     val category: TypeCategory,
+)
+
+private data class DecoderParam(
+    val propName: String,
+    val jsonKey: String,
+    val category: TypeCategory,
+    val isNullable: Boolean,
+    val hasDefault: Boolean,
+    val ignored: Boolean,
 )
