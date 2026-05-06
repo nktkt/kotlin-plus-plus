@@ -9,7 +9,7 @@ checkboxes reflect the state of *this* repository, not the spec.
 The phase this repository delivers.
 
 - [x] `settings.gradle.kts` + `build.gradle.kts` bootstrapping a
-      multi-module Kotlin/JVM 2.2 build with `-Xcontext-parameters`
+      multi-module Kotlin/JVM 2.3 build with `-Xcontext-parameters`
 - [x] `libs/kpp-core` — `Result<T, E>`, `Ok`/`Err`, `result { }` /
       `bind()` / `err()`, `KppError`, `runCatchingTyped`, combinators
 - [x] `libs/kpp-capability` — `Capability`, `Capabilities`,

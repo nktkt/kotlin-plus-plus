@@ -1,6 +1,6 @@
 # kpp-capability
 
-Pre-compiler emulation of Kotlin++ capability-based DI on top of Kotlin 2.2's
+Pre-compiler emulation of Kotlin++ capability-based DI on top of Kotlin's
 `-Xcontext-parameters`. A future Kotlin++ frontend will rewrite
 
 ```kotlin
@@ -10,7 +10,7 @@ fun audit(msg: String) {
 }
 ```
 
-into ordinary Kotlin 2.2 context parameters. Until that frontend exists, this
+into ordinary Kotlin context parameters. Until that frontend exists, this
 module gives you the same shape with a typed container.
 
 ## Usage

@@ -3,12 +3,12 @@
 [![CI](https://github.com/nktkt/kotlin-plus-plus/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nktkt/kotlin-plus-plus/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/nktkt/kotlin-plus-plus?display_name=tag&sort=semver)](https://github.com/nktkt/kotlin-plus-plus/releases)
 [![Coverage](https://img.shields.io/badge/coverage-see%20CI%20summary-blue)](https://github.com/nktkt/kotlin-plus-plus/actions/workflows/ci.yml)
-[![Kotlin](https://img.shields.io/badge/kotlin-2.2-blueviolet.svg?logo=kotlin)](https://kotlinlang.org/)
+[![Kotlin](https://img.shields.io/badge/kotlin-2.3-blueviolet.svg?logo=kotlin)](https://kotlinlang.org/)
 [![JDK](https://img.shields.io/badge/JDK-21-orange.svg)](https://adoptium.net/)
 
 > Typed errors. Capability-based DI. A strict analyzer that refuses
 > foot-guns. Library-level emulation of a hypothetical Kotlin successor —
-> usable today on plain Kotlin/JVM 2.2.
+> usable today on plain Kotlin/JVM 2.3.
 
 Kotlin++ is a proposed superset of Kotlin centered on three guarantees:
 typed errors as part of the return type, capability-based dependency
@@ -27,7 +27,7 @@ first-class — without forking the compiler.
 
 ```
 .
-├── build.gradle.kts          # root, configures Kotlin 2.2 + -Xcontext-parameters
+├── build.gradle.kts          # root, configures Kotlin 2.3 + -Xcontext-parameters
 ├── settings.gradle.kts       # 11 libs + 3 samples
 ├── gradle.properties
 ├── docs/
@@ -119,7 +119,7 @@ fun main() {
 ## Build and test
 
 Requires JDK 21 and Gradle 9 (any `gradle` ≥ 8.5 should work; tested
-with 9.2). The build provisions Kotlin 2.2 via the plugin.
+with 9.2). The build provisions Kotlin 2.3 via the plugin.
 
 ```
 gradle test
