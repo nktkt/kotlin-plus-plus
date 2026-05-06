@@ -14,10 +14,12 @@ class VirtualClock(initial: Instant) : Clock {
 
     override fun now(): Instant = synchronized(lock) { current }
 
+    /** Advances the clock by `duration`. */
     fun advanceBy(duration: Duration) {
         synchronized(lock) { current = current.plus(duration) }
     }
 
+    /** Sets the clock to `instant`. */
     fun setNow(instant: Instant) {
         synchronized(lock) { current = instant }
     }

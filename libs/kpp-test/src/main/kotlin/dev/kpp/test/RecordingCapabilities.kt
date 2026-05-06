@@ -9,6 +9,7 @@ import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 import kotlin.reflect.KClass
 
+/** A recorded method call: the capability interface, the method name, and the argument list. */
 data class Call(val capability: KClass<out Capability>, val method: String, val args: List<Any?>)
 
 /**
@@ -20,12 +21,15 @@ class CapabilityRecorder {
     private val lock = Any()
     private val buffer: MutableList<Call> = mutableListOf()
 
+    /** Snapshot of all recorded calls in insertion order. */
     fun records(): List<Call> = synchronized(lock) { buffer.toList() }
 
+    /** Snapshot of recorded calls keyed to the given `capability` interface. */
     fun recordsFor(capability: KClass<out Capability>): List<Call> = synchronized(lock) {
         buffer.filter { it.capability == capability }
     }
 
+    /** Clears all recorded calls. */
     fun reset() {
         synchronized(lock) { buffer.clear() }
     }
