@@ -11,6 +11,7 @@ package dev.kpp.secret
  * leak length or position via short-circuit timing.
  */
 class Secret<T : Any> internal constructor(private val value: T) {
+    /** Returns the wrapped secret value; call only at the boundary where the raw value is actually needed. */
     fun expose(): T = value
 
     override fun toString(): String = "Secret(***)"
@@ -33,9 +34,14 @@ class Secret<T : Any> internal constructor(private val value: T) {
     override fun hashCode(): Int = value.hashCode()
 }
 
+/** Wraps `value` as a `Secret<T>`. */
 fun <T : Any> secretOf(value: T): Secret<T> = Secret(value)
+/** Wraps this `String` as a `RedactedString`. */
 fun String.toSecret(): Secret<String> = Secret(this)
+/** Wraps this `ByteArray` as a `RedactedBytes`. */
 fun ByteArray.toSecret(): Secret<ByteArray> = Secret(this)
 
+/** A `Secret<String>`; redacts in `toString` and uses constant-time equality. */
 typealias RedactedString = Secret<String>
+/** A `Secret<ByteArray>`; redacts in `toString` and uses constant-time equality. */
 typealias RedactedBytes = Secret<ByteArray>

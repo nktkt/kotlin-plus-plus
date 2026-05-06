@@ -6,13 +6,16 @@ import kotlin.reflect.KClass
 import kotlin.reflect.full.allSupertypes
 import kotlin.reflect.full.isSubclassOf
 
+/** Typed container for capability-based DI; resolves capabilities by their interface type. */
 class Capabilities private constructor(
     private val map: Map<KClass<out Capability>, Capability>,
 ) {
+    /** Returns the capability of type `T`; throws `IllegalStateException` if absent. */
     inline fun <reified T : Capability> get(): T =
         getOrNull<T>()
             ?: error("Capability ${T::class.qualifiedName} not present in this Capabilities")
 
+    /** Returns the capability of type `T`, or `null` if absent. */
     inline fun <reified T : Capability> getOrNull(): T? {
         @Suppress("UNCHECKED_CAST")
         return rawGet(T::class) as T?
@@ -21,6 +24,7 @@ class Capabilities private constructor(
     @PublishedApi
     internal fun rawGet(key: KClass<out Capability>): Capability? = map[key]
 
+    /** Returns a new `Capabilities` with `other` indexed in; later entries win for the same interface key. */
     operator fun plus(other: Capability): Capabilities {
         val merged = LinkedHashMap(map)
         indexCapability(other, merged)
@@ -28,8 +32,10 @@ class Capabilities private constructor(
     }
 
     companion object {
+        /** A `Capabilities` with no entries. */
         val EMPTY: Capabilities = Capabilities(emptyMap())
 
+        /** Builds a `Capabilities` from `caps`, indexing each under every `Capability` supertype; last-wins on conflicts. */
         fun of(vararg caps: Capability): Capabilities {
             if (caps.isEmpty()) return EMPTY
             val merged = LinkedHashMap<KClass<out Capability>, Capability>()
