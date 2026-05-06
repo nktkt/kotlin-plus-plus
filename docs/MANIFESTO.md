@@ -92,7 +92,7 @@ container. A function that needs a `Logger` says so, and the caller
 provides one.
 
 Today: `Capabilities`, `withCapabilities`, `get<T>()`. The shape will
-fold into Kotlin 2.2 context parameters when the frontend is ready.
+fold into Kotlin context parameters when the frontend is ready.
 
 ### 4. Immutability
 

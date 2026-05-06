@@ -46,7 +46,7 @@ In a consumer module's `build.gradle.kts`:
 ```kotlin
 plugins {
     kotlin("jvm")
-    id("com.google.devtools.ksp") version "2.2.20-2.0.4"
+    id("com.google.devtools.ksp") version "2.3.7"
 }
 
 dependencies {
@@ -65,5 +65,5 @@ data class Greeting(val message: String, val priority: Int)
 Build, then call `Greeting("hi", 1).toJsonGenerated()`. The generated source
 lands at `build/generated/ksp/main/kotlin/<package>/<Class>_DeriveJson.kt`.
 
-KSP version chosen: `2.2.20-2.0.4` (matches the Kotlin 2.2.20 toolchain
-that Gradle 9.2 ships and that the root project uses).
+KSP version chosen: `2.3.7` (matches the Kotlin 2.3 toolchain that the
+root project uses).
