@@ -9,7 +9,7 @@ gradle test
 gradle :libs:kpp-analyzer:kppCheck
 ```
 
-The first runs all 149 tests. The second runs the analyzer dogfood pass over
+The first runs all 389 tests. The second runs the analyzer dogfood pass over
 the repo and must stay at **0 violations**.
 
 ## Module map
