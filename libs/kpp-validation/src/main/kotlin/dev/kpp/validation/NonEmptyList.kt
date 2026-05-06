@@ -23,7 +23,7 @@ class NonEmptyList<out T> private constructor(
     companion object {
         @PublishedApi internal fun <T> unsafe(items: List<T>): NonEmptyList<T> {
             kotlin.require(items.isNotEmpty()) { "NonEmptyList requires at least one element" }
-            return NonEmptyList(items)
+            return NonEmptyList(items.toList())
         }
     }
 }
