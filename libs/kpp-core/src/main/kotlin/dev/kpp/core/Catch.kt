@@ -1,5 +1,6 @@
 package dev.kpp.core
 
+/** Runs `block`, catching `Ex` and mapping it to a typed `E` via `transform`; emulates `try ... catch`. */
 inline fun <T, reified Ex : Throwable, E> runCatchingTyped(
     transform: (Ex) -> E,
     block: () -> T,
