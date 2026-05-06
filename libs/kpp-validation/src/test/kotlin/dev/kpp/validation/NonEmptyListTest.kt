@@ -47,6 +47,17 @@ class NonEmptyListTest {
         assertEquals(1, nel.head)
     }
 
+    @Test fun toNonEmptyListOrNull_snapshots_mutable_source() {
+        val source = mutableListOf(1, 2, 3)
+        val nel = source.toNonEmptyListOrNull()
+        assertNotNull(nel)
+
+        source.clear()
+
+        assertEquals(listOf(1, 2, 3), nel.toList())
+        assertEquals(1, nel.head)
+    }
+
     @Test fun equals_is_structural() {
         val a = nonEmptyListOf(1, 2, 3)
         val b = nonEmptyListOf(1, 2, 3)
